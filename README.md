@@ -154,7 +154,17 @@ Sous `;; ANSWER SECTION:` on trouve une ou plusieurs adresses selon l'IP traité
 
 ***1. Ouvrir Wireshark pendant les requêtes DHCP et DNS***
 
+> On réexécute `sudo ipconfig set en0 DHCP` pendant la capture.
 
+![Screen13](/TP2/Screen13.png)
+
+L'ordinateur a libéré le bail DHCP (*release*) puis en a demandé un nouveau (processus DORA).
+
+> On réexécute `dig google.com`pendant la capture.
+
+![Screen14](/TP2/Screen14.png)
+
+On observe dans ce cas également une activité sur WireShark : la requête sortante et la réponse entrante...
 
 ***2. Se renseigner sur les différences entre WiFi et câble***
 
