@@ -189,3 +189,12 @@ On observe dans ce cas également une activité sur WireShark : la requête sort
 
 ***5. Utiliser un switch (physique) et se connecter non pas à 2, mais à 3 ou 4 ou 5 et faire mumuse avec le réseau ainsi créé***
 
+Ainsi, on peut :
+
+* configurer des IP statiques dans le même sous-réseau sur chaque machine pour tester les pings, observer les tables ARP, capturer le trafic Wireshark... ;
+
+* installer un serveur DHCP sur une machine pour attribuer dynamiquement les IP aux autres ;
+
+* configurer un partage réseau ou un serveur HTTP/SSH accessible depuis les autres machines connectées
+
+* etc... les possibilités sont infinies...
