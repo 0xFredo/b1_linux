@@ -181,7 +181,11 @@ On observe dans ce cas également une activité sur WireShark : la requête sort
 
 ***4. Sinon, elle sert à quoi la MAC si on a des IP ? → Se renseigner sur ARP***
 
+> La MAC ou Media Access Control (couche 2 "Liaison de données" du modèle OSI), est l'identifiant physique propre à la carte réseau.
 
+> L'IP ou Internet Protocol (couche 3 "Réseau" du modèle OSI), permet d'identifier la carte réseau, sur le réseau, afin de router le trafic / les paquets.
+
+> ARP (Address Resolution Protocol) permet de faire le lien entre une adresse IP et une MAC : il associe dynamiquement une IP à sa MAC correspondante sur un réseau local.
 
 ***5. Utiliser un switch (physique) et se connecter non pas à 2, mais à 3 ou 4 ou 5 et faire mumuse avec le réseau ainsi créé***
 
