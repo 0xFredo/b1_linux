@@ -168,7 +168,12 @@ On observe dans ce cas également une activité sur WireShark : la requête sort
 
 ***2. Se renseigner sur les différences entre WiFi et câble***
 
-
+|               |            Câble            |            Wi-Fi           |
+| ------------- | --------------------------- | -------------------------- |
+| Débit         | Élevé, constant (→ 10 Gbps) | Bon, plus variable         | 
+| Latence       | Faible (quelques ms)        | Plus élevée, très variable |
+| Fiabilité     | Très fiable                 | ⚠ Obstacles, interférences |
+| Sécurité      | Physiquement limité (câble) | Signal captable, variable  |
 
 ***3. Explorer l'interface d'administration de votre box (chez vous) avec tout ça en tête***
 
