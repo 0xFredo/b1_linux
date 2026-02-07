@@ -160,7 +160,7 @@ Sous `;; ANSWER SECTION:` on trouve une ou plusieurs adresses selon l'IP traité
 
 L'ordinateur a libéré le bail DHCP (*release*) puis en a demandé un nouveau (processus DORA).
 
-> On réexécute `dig google.com`pendant la capture.
+> On réexécute `dig google.com` pendant la capture.
 
 ![Screen14](/TP2/Screen14.png)
 
@@ -177,7 +177,13 @@ On observe dans ce cas également une activité sur WireShark : la requête sort
 
 ***3. Explorer l'interface d'administration de votre box (chez vous) avec tout ça en tête***
 
+![Screen15](/TP2/Screen15.png)
 
+On observe ici les paramètres DHCP de la "box" : on a la possibilité de modifier l'IP de celle-ci, le netmask, la plage d'IPs à attribuer aux appareils connectés au réseau... et même d'attribuer des baux DHCP statiques (pour garder toujours la même IP pour une même adresse MAC...) !
+
+![Screen16](/TP2/Screen16.png)
+
+Un autre exemple encore plus courant de paramètres que l'on peut explorer/modifier dans cette interface est la carte des équipement : voir tous les équipements connectés, leur IP, leur MAC... ; on peut également les identifier avec un nom et une icône pour les reconnaître plus facilement !
 
 ***4. Sinon, elle sert à quoi la MAC si on a des IP ? → Se renseigner sur ARP***
 
