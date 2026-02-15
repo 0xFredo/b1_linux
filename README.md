@@ -272,3 +272,198 @@ On retrouve le modulo et l'exposant public : on remarque que ce sont les mêmes 
 *Sur macOS (LibreSSL), la commande  `pkeyutl`  plante avec l’erreur "Expecting: ANY PRIVATE KEY", il a donc fallu remplacer `pkeyutl` par `rsautl` (qui utilise le même chiffrement asymétrique) pour que ça fonctionne.*
 
 > Enfin on procède au déchiffrement du fichier (avec la clé privée si vous ne l'aviez pas compris...)
+
+### II. Sans que je vous file les réponses à chaques étapes
+
+*(Là aussi, lorsque nécessaire on utilisera le mot de passe "a"...)*
+
+#### A. Base64
+
+***Créer un fichier `data.bin` contenant 100 Ko de données binaires aléatoires, et vérifier sa taille.***
+
+    dd if=/dev/urandom of=data.bin bs=1k count=100
+    ls -l data.bin
+
+![Screen1](/TP3/Screen1.png)
+
+***Encoder le fichier en Base64 dans un fichier `data.b64`, et afficher son contenu.***
+
+    openssl base64 -e -in data.bin -out data.b64
+    cata data.b64
+
+![Screen2](/TP3/Screen2.png)
+
+***Comparer la taille de `data.bin` et `data.b64`.***
+
+    ls -l data*
+
+![Screen3](/TP3/Screen3.png)
+
+***Décoder le fichier `data.b64` afin dʼobtenir un fichier `data_restored.bin`, et vérifier que `data.bin` et `data_restored.bin` sont strictement identiques.***
+
+    openssl base64 -d -in data.b64 -out data_restored.bin
+    diff -s data.bin data_restored.binbin
+
+![Screen4](/TP3/Screen4.png)
+
+***Question 1 : Base64 est-il un chiffrement ? Pourquoi ?***
+
+Non, c'est un encodage. Il est réversible sans clé, n'apporte aucune confidentialité et n'est donc pas un chiffrement.
+
+***Question 2 : Pourquoi la taille du fichier change-t-elle après encodage ?***
+
+L’encodage Base64 prend des blocs de 3 octets (24 bits) et les représente par 4 caractères ASCII de 6 bits chacun : on passe de 3 octets à 4 caractères, la taille du fichier augmente donc mécaniquement.
+
+***Question 3 : Quel est approximativement le pourcentage dʼaugmentation ?***
+
+Chaque 3 octets deviennent 4 octets de texte (x1,33), on obtient donc une augmentation d’environ 33% de la taille.
+
+***Question 4 : Quelle méthode permet de vérifier rigoureusement que deux fichiers sont identiques ?***
+
+On calcule le hash de chaque fichier avec une fonction comme SHA‑256, puis on compare les valeurs obtenues. Si les deux hash sont exactement identiques, on considère rigoureusement que les fichiers le sont aussi.
+
+#### B. Chiffrement symétrique – AES
+
+***Créer un fichier `confidentiel.txt` contenant votre nom, la date, et 5 lignes minimum.***
+
+    nano confidentiel.txt
+
+***Chiffrer le fichier avec AES 256, un sel, une dérivation de clé robuste, et un algorithme de hachage sécurisé. Le fichier chiffré devra sʼappeler `confidentiel.enc`***
+
+    openssl enc -e -salt -in confidentiel.txt -out confidentiel.enc -aes256 -pbkdf2 -md sha256
+
+`-aes256` → chiffrement en AES 256
+
+`-salt` → sel aléatoire
+
+`-pbkdf2` → dérivation de clé robuste PBKDF2
+
+`-md sha256` → algorithme de hachage sécurisé (SHA‑256) pour la dérivation
+
+***Vérifier que le fichier obtenu est bien binaire.***
+
+    cat confidentiel.enc
+
+![Screen5](/TP3/Screen5.png)
+
+***Déchiffrer le fichier vers `confidentiel_dechiffre.txt` et vérifier que le contenu correspond exactement à lʼoriginal.***
+
+    openssl enc -d -in confidentiel.enc -out confidentiel_dechiffre.txt -aes256 -pbkdf2 -md sha256
+    diff -s confidentiel.txt confidentiel_dechiffre.txt
+
+![Screen6](/TP3/Screen6.png)
+
+***Chiffrer une seconde fois le même fichier avec le même mot de passe, et comparer les deux fichiers chiffrés.***
+
+    openssl enc -e -salt -in confidentiel.txt -out confidentiel_bis.enc -aes256 -pbkdf2 -md sha256
+    diff -s confidentiel.enc confidentiel_bis.enc
+
+![Screen7](/TP3/Screen7.png)
+
+***Question 1 : Pourquoi les deux fichiers chiffrés sont-ils différents ?***
+
+On a ajouté un sel aléatoire au chiffrement, ce qui a dérivé la clé de chiffrement, le fichier a donc en quelque sorte été chiffré différemment, raison pour laquelle il est différent.
+
+***Question 2 : Quel est le rôle du sel ?***
+
+Aléatoire et ajouté au mot de passe, il empêche les attaques par tables rainbow et garantit que deux chiffrages identiques avec le même mot de passe donnent des résultats différents. Si dans notre cas on avait retiré l'option sel, les deux fichiers chiffrés à la fin auraient été identiques.
+
+***Question 3 : Que se passe-t-il si une option change lors du déchiffrement ?***
+
+Une manquante ou différente empêcherait la dérivation correcte de la clé AES, produisant une erreur "bad decrypt" ou un fichier corrompu, illisible.
+
+***Question 4 : Pourquoi utilise-t-on PBKDF2 ?***
+
+Car c'est une fonction lente et itérative qui résiste aux attaques brute force.
+
+***Question 5 : Quelle est la différence entre encodage et chiffrement ?***
+
+L'**encodage** (ex. Base64) transforme des données selon une règle publique et réversible, sans clé ni secret (pas de sécurité) ; tandis que le **chiffrement** (ex. AES/RSA) utilise une clé secrète pour rendre les données illisibles à quiconque sans la clé (sécurisé).
+
+#### C. Cryptographie asymétrique – RSA
+
+***Générer une paire de clés RSA 2048 bits (`rsa_private.pem`, `rsa_public.pem`), et protéger la clé privée par un chiffrement.***
+
+    openssl genrsa -out private_key.pem 2048
+    openssl rsa -in private_key.pem -pubout -out public_key.pem
+    openssl enc -e -salt -in private_key.pem -out private_key_protected.pem -aes256 -pbkdf2 -md sha256
+
+![Screen8](/TP3/Screen8.png)
+
+***Afficher les paramètres des deux clés et comparer.***
+
+    openssl rsa -in private_key.pem -text -noout
+    openssl rsa -in public_key.pem -pubin -text -noout
+
+![Screen9](/TP3/Screen9.png)
+![Screen10](/TP3/Screen10.png)
+
+On observe, une fois de plus, que les données communes à la clé privée et la clé publique (modulo et exposant) correspondent entre elles.
+
+***Créer un fichier `secret.txt` et chiffrer ce fichier avec la clé publique (→ `secret.enc`).***
+
+    nano secret.txt
+    openssl rsautl -encrypt -in secret.txt -inkey public_key.pem -pubin -out secret.enc
+
+***Déchiffrer avec le clé privée.***
+
+    openssl rsautl -decrypt -in secret.enc -inkey private_key.pem
+
+![Screen11](/TP3/Screen11.png)
+
+***Question 1 : Pourquoi la clé privée ne doit-elle jamais être partagée ?***
+
+Car cette clé privée est l'élément de déchiffrement des messages/fichiers chiffrés par la clé publique correspondant. Si la clé privée est compromise ou connue de quelqu'un d'autre, ce quelqu'un peut déchiffrer les communications adressées au destinataire original ; à l'inverse de la clé publique qui ne sert qu'à chiffrer les données et qui peut donc être diffusée librement.
+
+***Question 2 : Pourquoi RSA nʼest-il pas adapté au chiffrement de gros fichiers ?***
+
+RSA ne convient pas au chiffrement de gros fichiers car le temps de chiffrement/déchiffrement augmente de manière exponentielle au fur et à mesure que la taille du fichier augmente. Le chiffrement de gros fichiers serait également très gourmand en ressources CPU.
+
+***Question 3 : Quelles différences observe-t-on entre les paramètres dʼune clé publique et dʼune clé privée ?***
+
+La principale différence est que là où la clé publique est courte et partagée librement, la clé privée est longue est ultra-secrète : cette dernière inclut un grand nombre secret calculé pour annuler l'exposant de la clé publique, et derrière le chiffrement en lui-même.
+
+***Question 4 : Quel est le rôle du modulo dans RSA ?***
+
+Le modulo agit comme une "boîte fermée" qui limite tous les calculs à un espace fixe défini par le produit de deux grands nombres premiers. Cela permet le chiffrement/déchiffrement avec nos clés, sans que les nombres deviennent ingérables ou fuient hors de cet espace sécurisé. C'est ce qui rend l'opération rapide et sûre en pratique.
+
+***Question 5 : Pourquoi utilise-t-on souvent RSA pour chiffrer une clé AES plutôt quʼun document entier ?***
+
+On utilise cette méthode de chiffrement hybride car là où RSA est très lent, bien qu'utilisant deux clés séparées (chiffrement asymétrique), AES est plus performant (surtout pour les gros fichiers) mais n'utilise qu'une seule clé (chiffrement symétrique). Il s'agit donc de chiffrer le document en AES dans un premier temps pour la rapidité, puis la clé AES en RSA pour la sécurité (puisque le chiffrement asymétrique est moins facilement compromissible) ; comme des poupées russes...
+
+#### D. Signature numérique
+
+***Créer un fichier `contrat.txt` et générer son empreinte (hash).***
+
+    nano contrat.txt
+    openssl dgst -sha256 fichier.txt
+
+![Screen12](/TP3/Screen12.png)
+
+***Signer le fichier avec votre clé privée (→ `contrat.sig`), et vérifier la signature avec la clé publique.***
+
+    openssl dgst -sha256 -sign private_key.pem -out contrat.sig contrat.txt
+    openssl dgst -sha256 -verify public_key.pem -signature contrat.sig contrat.txt
+
+***Modifier légèrement le fichier `contrat.txt` et refaire la vérification.***
+
+    nano contrat.txt
+    openssl dgst -sha256 -verify public_key.pem -signature contrat.sig contrat.txt
+
+![Screen13](/TP3/Screen13.png)
+
+***Question 1 : Que se passe-t-il après modification du fichier ? Pourquoi ?***
+
+Jusqu'à la modification du fichier depuis la signature, on a bien "Verified OK", ce qui signifie que la signature est valide. Le hash du fichier correspond à celui de la clé privée utilisée pour la signature. En d'autres termes, c'est la confirmation que personne n’a modifié le fichier depuis la signature.
+
+Or, après la modification du fichier, quand on vérifie à nouveau la validité de la signature, celle-ci échoue : cela signifie que le hash du fichier a changé depuis la signature et qu'il ne correspond plus à la clé privée. Quelqu'un a modifié le fichier après la signature !
+
+***Question 2 : Quel est le rôle du hachage dans le mécanisme de signature ?***
+
+Le hachage permet de prouver l'auteur d'un fichier, et que celui-ci n'a pas été modifié depuis sa signature : le hash du fichier est chiffré par la clé privée. Ainsi, seule la clé publique correspondant reconnaîtra ce hash (certifiant de ce fait l'auteur), et ce uniquement si le hash n'a pas été réécrit lors d'une modification...
+
+***Question 3 : Quelle différence entre signature numérique et chiffrement ?***
+
+La signature numérique assure l'authenticité et l'intégrité d'un fichier en chiffrant une empreinte avec la clé privée du signataire pour vérification publique via sa clé publique. Cela certifie que le détenteur de la clé est l'auteur du fichier (sauf si clé compromise), et que le fichier n'a pas été modifié depuis la signature.
+
+À l'inverse, le chiffrement protège la confidentialité en rendant le contenu lisible par le destinataire uniquement, via une clé publique pour chiffrer et une clé privée pour déchiffrer, sans impliquer d'empreinte ni de preuve d'origine.
