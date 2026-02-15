@@ -204,3 +204,71 @@ Ainsi, on peut :
 * configurer un partage réseau ou un serveur HTTP/SSH accessible depuis les autres machines connectées
 
 * etc... les possibilités sont infinies...
+
+## TP 3
+
+### I. Exploration en solo
+
+*(Pour cette partie, tous les fichiers nécessitant à la création un mot de passe ont été chiffrés avec le mdp "a"...)*
+
+#### A. Base64
+
+> On va d'abord créer un fichier file_bin contenant 50 kilooctets de données binaires aléatoires.
+
+> Puis encoder le fichier en base64 et vérifier que le fichier généré est bien un texte « pur » formaté selon le modèle particulier de base64.
+
+***Comparer la taille des fichiers, que constatez-vous ?***
+
+    frederik@macbookair-1 TP3 % ls -l file_bin*
+    -rw-r--r--  1 frederik  staff  51200 15 févr. 11:10 file_bin
+    -rw-r--r--  1 frederik  staff  69335 15 févr. 11:11 file_bin_b64
+
+On constate que le fichier est plus gros. `file_bin` fait 51200 B alors que `file_bin_b64` fait 69335 B.
+
+> On décode le fichier base64 pour produire un nouveau fichier file_bin2.
+
+***Les fichiers binaires sont-ils identiques ?***
+
+    frederik@macbookair-1 TP3 % diff -s file_bin file_bin2
+    Files file_bin and file_bin2 are identical
+
+Oui, ils sont identiques. L'encodage-décodage n'altère donc pas le contenu du fichier.
+
+#### B. AES (Chiffrement symétrique)
+
+> On va générer un autre fichier texte message aléatoire qui va créer un fichier texte contenant tous les mots du dictionnaire ayant ker comme sous-chaîne (vous pouvez bien entendu utiliser un autre filtre que ker).
+
+> Ensuite on chiffre le message en aes256, et on procède au déchiffrement.
+
+> Le fichier clair (message) est un fichier texte, le cryptogramme obtenu (message_c) est un fichier binaire, ce qui peut poser des problèmes dans certains contextes. On peut essayer de voir ce que ca donne...
+
+#### C. RSA (Chiffrement asymétrique)
+
+> Générez une paire de clés RSA de 2048 bits (en personnalisant le nom selon votre identifiant)...
+
+> Regardons le contenu du fichier de la clé (qui est au format pem : privacy enhanced mail, donc encodée en base64).
+
+> On va ensuite regarder un peu plus en détail les paramètres de la clé, puis protéger notre paire de clés RSA avec un chiffrement AES.
+
+    openssl enc -e -salt -in cle_fredo.pem -out cle_fredo_protected.pem -aes256 -pbkdf2 -md sha256
+
+> On va maintenant exporter la clé publique et visualiser ses paramètres.
+
+***Que pouvons nous voir dans ces paramètres ?***
+
+    frederik@macbookair-1 TP3 % openssl rsa -in clepublique_fredo.pem -pubin -text -noout 
+    RSA Public-Key: (2048 bit)
+    Modulus:
+        00:d8:27:3d:b2:59:65:f8:af:ef:42:54:bd:b8:86:
+        [...]
+        f6:47:6e:f9:9b:d9:09:0c:23:0a:06:c7:2a:25:13:
+        fb:15
+    Exponent: 65537 (0x10001)
+
+On retrouve le modulo et l'exposant public : on remarque que ce sont les mêmes que notre clé privée.
+
+> On va maintenant créer une passphrase de votre choix avec vim ou nano, et chiffrer le fichier avec la clé publique.
+
+*Sur macOS (LibreSSL), la commande  `pkeyutl`  plante avec l’erreur "Expecting: ANY PRIVATE KEY", il a donc fallu remplacer `pkeyutl` par `rsautl` (qui utilise le même chiffrement asymétrique) pour que ça fonctionne.*
+
+> Enfin on procède au déchiffrement du fichier (avec la clé privée si vous ne l'aviez pas compris...)
