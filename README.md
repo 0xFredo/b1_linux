@@ -467,3 +467,104 @@ Le hachage permet de prouver l'auteur d'un fichier, et que celui-ci n'a pas ét�
 La signature numérique assure l'authenticité et l'intégrité d'un fichier en chiffrant une empreinte avec la clé privée du signataire pour vérification publique via sa clé publique. Cela certifie que le détenteur de la clé est l'auteur du fichier (sauf si clé compromise), et que le fichier n'a pas été modifié depuis la signature.
 
 À l'inverse, le chiffrement protège la confidentialité en rendant le contenu lisible par le destinataire uniquement, via une clé publique pour chiffrer et une clé privée pour déchiffrer, sans impliquer d'empreinte ni de preuve d'origine.
+
+### Bonus : Mettre en place un chiffrement hybride complet, en expliquant chaque étape
+
+***1. Générer une clé AES aléatoire***
+
+On commence par créer un fichier `aes_key.bin` contenant 32 octets aléatoires en binaire. Cette clé nous servira à chiffrer un fichier volumineux en AES.
+
+    openssl rand -out aes_key.bin 32
+N.B. : L'option `rand` ici est basée sur `/dev/urandom`...
+
+`-out aes_key.bin` → on spécifie l'emplacement d'enregistrement de la clé ;
+
+`32` → et on indique la longueur de la clé (32 bytes pour AES-256)...
+
+> On a maintenant notre clé AES aléatoire.
+
+***2. Chiffrer un fichier volumineux avec AES***
+
+*Le fichier en question sera une archive zip de 17,7 Mo. Ni celui-ci ni sa version chiffrée ne seront inclus dans le repository...*
+
+    openssl enc -e -salt -in b1_linux-main.zip -out b1_linux-main.enc -aes-256-cbc -pass file:aes_key.bin -pbkdf2 -md sha256
+
+`enc` → on spécifie le mode chiffrement/déchiffrement ;
+
+`-e` → on re-spécifie le mode chiffrement ;
+
+`-salt` → on ajoute un sel aléatoire ;
+
+`-in b1_linux-main.zip` → on spécifie le fichier source ;
+
+`-out b1_linux-main.enc` → ... et le fichier destination (chiffré) ;
+
+`-aes-25-cbc` → on spécifie qu'on chiffre en AES-256 en mode CBC (chaînage par blocs, adapté au gros fichiers) ;
+
+`-pass file:aes_key.bin` → on lui donne la clé directement depuis le fichier binaire qu'on a créé ;
+
+`-pbkdf2` → on spécifie la dérivation PBKDF2 ;
+
+`-md sha256` → et le hachage SHA-256...
+
+> On a maintenant un fichier `b1_linux-main.enc`, *instantanément* chiffré en AES-256 depuis `l1_linux-main.zip` (chiffrement symétrique, soit une seule clé), avec notre clé AES `aes_key.bin`.
+
+***3. Chiffrer la clé AES avec RSA***
+
+On commence par générer une paire de clés RSA 2048 bits :
+
+    openssl genrsa -out private_key.pem 2048
+
+`genrsa` → on génère une clé privée (et sa clé publique intégrée) ;
+
+`-out private_key.pem` → on spécifie le nom de la clé privée ;
+
+`2048` → et on spécifie la taille de la clé (en bits)...
+
+> On a maintenant notre clé privée.
+
+    openssl rsa -in private_key.pem -pubout -out public_key.pem
+
+`rsa` → on utilise l'outil de manipulation de clés RSA ; 
+
+`-in private_key.pem` → on spécifie à partir de quelle clé privée on exporte la clé publique ;
+
+`-pubout` → on indique qu'on extrait uniquement la clé publique ;
+
+`-out public_key.pem` → et enfin on indique l'emplacement de sortie de la clé publique...
+
+> On a maintenant notre clé publique.
+
+On va à présent chiffrer notre unique clé AES avec notre clé publique RSA.
+
+    openssl rsautl -encrypt -in aes_key.bin -inkey public_key.pem -pubin -out aes_key.enc
+
+`rsautl` → on utilise l'outil de chiffrement/déchiffrement (entre autres) RSA ;
+
+`-encrypt` → on indique que l'on va chiffrer des données ;
+
+`-in aes_key.bin` → on spécifie le fichier source (à chiffrer) ; 
+
+`-inkey public_key.pem` → on indique la clé publique avec laquelle on réalise le chiffrement ;
+
+`-pubin` → on indique aussi que l'on vient de spécifier une clé publique ;
+
+`-out aes_key.enc` → et on spécifie la destination du fichier chiffré...
+
+> On a enfin chiffré notre clé AES avec RSA.
+
+![Screen14](/TP3/Screen14.png)
+
+**Notre fichier `b1_linux-main.zip` est maintenant protégé par chiffrement dit "hybride" : on a à la fois l'efficacité du chiffrement AES et le chiffrement asymétrique du RSA, moins compromissible du fait de l'utilisation de deux clés séparées.**
+
+**Pour accéder à notre fichier original, il nous faudra à présent utiliser dans un premier temps la clé privée RSA pour accéder à notre clé AES, qui nous permettra elle-même de déchiffrer le fichier `b1_linux-main.enc` par la suite. Pour cela on utilisera les deux commandes suivantes :**
+
+    openssl rsautl -decrypt -in aes_key.enc -inkey private_key.pem -out aes_key_decrypted.bin
+    openssl enc -d -in b1_linux-main.enc -out b1_linux-main_decrypted.zip -aes-256-cbc -pass file:aes_key.bin -pbkdf2 -md sha256
+
+**On peut aussi procéder à la vérification pour être sûr que les données des originaux n'ont pas été altérées :**
+
+    diff -s aes_key.bin aes_key_decrypted.bin
+    diff -s b1_linux-main.zip b1_linux-main_decrypted.zip
+
+![Screen15](/TP3/Screen15.png)
