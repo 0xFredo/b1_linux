@@ -67,29 +67,189 @@ Après validation et retour dans les infos réseau, on voit que l'Adresse IP a c
 
 ### II. Exploration locale en duo
 
-#### A. Création du réseau
+#### A. Modification d'adresse IP
 
+![Screen17](/TP2/Screen17.png)
+![Screen18](/TP2/Screen18.png)
 
+> Les paramètres IP à la connexion des deux machines, avant modification.
 
-#### B. Modification d'adresse IP
+***Modifiez l'IP des deux machines pour qu'elles soient dans le même réseau.***
 
+![Screen19](/TP2/Screen19.png)
+![Screen20](/TP2/Screen20.png)
 
+> Les paramètres IP des deux ordinateurs après modification.
 
-#### C. Utilisation d'un des deux comme gateway
+***Vérifiez à l'aide de commandes que vos changements ont pris effet.***
 
+    ifconfig
 
+![Screen21](/TP2/Screen21.png)
 
-#### D. Petit chat privé ?
+On voit que le changement d'IP de la première machine a bien été opéré : l'IP de la carte `en7` est maintenant `193.168.1.1` comme défini dans les Réglages Système.
 
+![Screen22](/TP2/Screen22.png)
 
+Ici aussi l'IP a bien changé : celle de `en0` (ici la carte Ethernet) est bien `193.168.1.2` comme paramétré ici aussi.
 
-#### E. Wireshark
+***Utilisez `ping` pour tester la connectivité entre les deux machines.***
 
+![Screen23](/TP2/Screen23.png)
+![Screen24](/TP2/Screen24.png)
 
+On voit grâce à `ping` que la connectivité entre les deux machine est bien opérationnelle !
 
-#### F. Firewall
+***Testez avec un `/20`, puis un `/24`, puis le plus petit réseau que vous trouvez.***
 
+*Dans les étapes ci dessus on a déjà un `/24`, il ne nous reste plus qu'à faire le `/20`.*
 
+![Screen25](/TP2/Screen25.png)
+![Screen26](/TP2/Screen26.png)
+
+...et les `ping` d'une machine à l'autre et vice-versa fonctionnent...
+
+***Inventez un nouveau réseau ! Comme `172.16.18.0/24` par exemple !***
+
+![Screen27](/TP2/Screen27.png)
+![Screen28](/TP2/Screen28.png)
+
+...et les `ping` fonctionnent encore et toujours...
+
+#### B. Utilisation d'un des deux comme gateway
+
+**Sur la machine "gateway"**
+
+Sur macOS Ventura 13 et versions ultérieures, pour "router" la connexion Internet d'une interface vers une autre, on se rend dans les `Réglages Système > Général > Partage > Partage Internet`.
+
+Comme illustré ci-dessous, le paramètre `Partager votre connexion depuis` correspond à la carte réseau ayant accès à Internet, depuis laquelle on route les paquets Internet : ici, on choisit donc `Wi-Fi`.
+
+Ensuite, juste en dessous, on a la deuxième section qui nous intéresse : `Avec les appareils utilisant`, avec la liste des interfaces réseau vers lesquelles on peut router des paquets depuis notre carte `Wi-Fi`. Ici, la carte utilisée pour relier les deux machines est `USB 10/100/1000 LAN`, on coche donc celle-ci, et on active le Partage Internet en haut.
+
+![Screen29](/TP2/Screen29.png)
+
+**Sur la machine qui recevra les paquets depuis la carte Wi-Fi de l'autre ordinataur**
+
+Dans les paramètres de la carte Ethernet (utilisée pour la connexion avec l'autre ordinataur), on veille à repasser en DHCP : étant donné que l'autre Mac se prend pour un serveur DHCP (Partage Internet), il peut y avoir des erreurs si on reste en IP manuelle...
+
+**Plus qu'à tester la connexion depuis le Mac qui reçoit les paquets !**
+
+    ping 8.8.8.8
+
+On ping Google pour être sûr que tout est en ordre.
+
+![Screen30](/TP2/Screen30.png)
+
+Et ça fonctionne !
+
+#### C. Petit chat privé ?
+
+**Rappel des IPs :**
+
+Serveur : `172.16.18.1` | Client : `172.16.18.2`
+
+***Connecter les deux machines entre elles avec `nc`, et échanger quelques messages...***
+
+**Sur le serveur :**
+
+    nc -l 8888
+
+On met `nc` en mode listen (`-l`) sur le port 8888 (inutile de mettre `-p` ici)...
+
+**Sur le client :**
+
+    nc 172.16.18.1 8888
+
+On se connecte au serveur avec son IP et le port choisi...
+
+![Screen31](/TP2/Screen31.png)
+![Screen32](/TP2/Screen32.png)
+
+Et ça fonctionne !
+
+***Pour aller un peu plus loin, essayez de préciser sur quelle IP le serveur doit écouter, et ne pas répondre sur les autres interfaces réseau (ex. uniquement Ethernet...)***
+
+**Sur le serveur :**
+
+    nc -l 172.16.18.1 8888
+
+*La commande ne change pas sur le client, et tout fonctionne comme prévu.*
+
+*Et, après reconnexion des deux machines au même Wi-Fi, quand essaie de se connecter à l'IP de la carte Wi-Fi du serveur depuis le client, l'opération prend fin directement (on n'est même pas invité à taper un message...).*
+
+***On peut aussi accepter uniquement les connexions internes à la machine en écoutant sur `127.0.0.1`.***
+
+    nc -l 127.0.0.1 8888
+
+![Screen33](/TP2/Screen33.png)
+![Screen34](/TP2/Screen34.png)
+
+#### D. Wireshark
+
+***Utilisez le pour observer les trames qui circulent entre vos deux cartes Ethernet...***
+
+***...pendant un `ping`***
+
+![Screen35](/TP2/Screen35.png)
+
+*On filtre le protocole ICMP, celui utilisé par `ping`...*
+
+Ici, il y a eu 6 `ping` (3 dans un sens, 3 dans l'autre)... pour chacun on a une requête et une réponse : 1 paquet par requête et 1 par réponse...
+
+***...pendant un `netcat`***
+
+![Screen36](/TP2/Screen36.png)
+
+Ici, la connexion a été établie (4 premiers paquets), puis 4 messages ont été échangés (2 dans un sens, 2 dans l'autre — là aussi 2 paquets par message), et enfin il y a eu fermeture de session par le client (4 derniers paquets)...
+
+*On filtre le port 8888, que l'on utilise ici...*
+
+***...pendant que le PC 1 sert du PC 2 comme gateway***
+
+![Screen37](/TP2/Screen37.png)
+
+Ici aussi on a effectué 3 `ping` vers `8.8.8.8` (toujours Google) depuis la machine qui reçoit la connexion depuis la gateway.
+
+#### E. Firewall
+
+***Activez votre firewall et configurez-le pour accepter le `ping`.***
+
+Toujours sur macOS Ventura 13 et ultérieur, on peut trouver les paramètres du firewall dans `Réglages Système > Réseau > Coupe-feu`. On active le Coupe-feu, et on clique sur `Options...`.
+
+Pour autoriser `ping`, on désactive simplement le "Mode furtif".
+
+![Screen38](/TP2/Screen38.png)
+
+***Autorisez `nc` sur un port spécifique (entre 1024 et 20000), et testez.***
+
+Sur macOS, sans solution tierce, il n'est pas possible d'autoriser une application spécifique sur un port spécifique : le Coupe-feu intégré permet de gérer des applications mais pas les ports, et `pf` ne gère que les ports. Ainsi, dans un cas soit l'appli est autorisée/bloquée pour tous les ports, soit vice-versa, soit les deux.
+
+Pour cet exemple nous allons bloquer tous les ports sauf 8888, et toutes les applications sauf `nc`.
+
+On commence par bloquer les applications sauf `nc` :
+
+![Screen39](/TP2/Screen39.png)
+
+Et on n'autorise que le port 8888 en éditant la config de `pf` :
+
+    sudo nano /etc/pf.conf
+
+...on ajoute le texte suivant au fichier :
+
+    block in all
+    pass in proto tcp to any port 8888 keep state
+
+![Screen40](/TP2/Screen40.png)
+
+...et on recharge et active la config :
+
+    sudo pfctl -f /etc/pf.conf
+    sudo pfctl -e
+
+![Screen41](/TP2/Screen41.png)
+![Screen42](/TP2/Screen42.png)
+
+Comme on peut le voir, Netcat ne fonctionne plus qu'avec le port 8888 que nous avons autorisé, mais plus avec les autres...
 
 ### III. Manipulations d'autres outils/protocoles côté client
 
