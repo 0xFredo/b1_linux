@@ -728,3 +728,399 @@ On va à présent chiffrer notre unique clé AES avec notre clé publique RSA.
     diff -s b1_linux-main.zip b1_linux-main_decrypted.zip
 
 ![Screen15](/TP3/Screen15.png)
+
+## TP 4
+
+### I. Mise en place de l’environnement virtualisé
+
+***Installez VirtualBox et créez une VM Ubuntu. Vérifiez que la VM a une IP accessible depuis la machine hôte.***
+
+*On a installé Ubuntu dans une machine virtuelle.*
+
+    ip a
+
+Sur la VM, on affiche les informations des différentes cartes réseau de la machine virtuelle.
+
+![Screen1](/TP4/Screen1.png)
+
+La carte `enp0s6` correpsond à un réseau privé hôte, donc accessible de puis l'hôte : son IP est `10.37.129.10`.
+
+### II. Serveur SSH
+
+***Installez le serveur SSH sur la VM.***
+
+    sudo apt install openssh-server
+
+Sur la VM aussi utilise le gestionnaire de paquets `apt` (pour Ubuntu) pour installer le serveur OpenSSH...
+
+***Vérifiez que le service SSH fonctionne et écoute sur un port.***
+
+    systemctl status ssh
+
+![Screen2](/TP4/Screen2.png)
+
+On observe dans les premières lignes que le service SSH est actif...
+Plus bas dans les logs on remarque aussi qu'il écoute sur le port 22.
+
+***Connectez-vous depuis la machine hôte.***
+
+    ssh parallels@10.37.129.10
+
+![Screen3](/TP4/Screen3.png)
+
+***Générez une clé SSH sur la machine cliente et copiez-la sur le serveur pour tester la connexion sans mot de passe.***
+
+    ssh-keygen
+    ssh-copy-id parallels@10.37.129.10
+
+Sur le client (ici l'hôte de la VM), on commence par générer une clé avec `ssh-keygen` et on la copie via SSH avec `ssh-copy-id`.
+
+![Screen4](/TP4/Screen4.png)
+
+### III. Sécurisation SSH
+
+***Interdisez l’accès root.***
+
+    sudo nano /etc/ssh/sshd_config
+
+Dans le fichier `/etc/ssh/sshd_config` de la VM, on ajoute/décommente la ligne `PermitRootLogin no`.
+
+***Désactivez l’authentification par mot de passe.***
+
+Toujours dans le fichier `sshd_config`, on fait pareil avec les lignes `PasswordAuthentication no` et `PubkeyAuthentication yes`.
+
+***Changez le port par défaut (22) pour réduire les tentatives de brute-force.***
+
+Enfin, toujours dans le même fichier, on fait pareil avec la ligne `Port 2222`. (On se mettra sur le port 2222.)
+
+![Screen5](/TP4/Screen5.png)
+
+On ferme le fichier de config SSH, et on met à jour les règles du firewall pour ouvrir le port 2222 :
+
+    sudo ufw allow 2222/tcp
+
+On reboot la VM.
+
+***Testez la connexion avec le nouveau port depuis la machine cliente.***
+
+    ssh -p 2222 parallels@10.37.129.10
+
+On rajoute l'argument `-p 2222` à notre commande de connexion SSH pour spécifier un port (différent du port 22 par défaut) à utiliser pour la connexion.
+
+![Screen6](/TP4/Screen6.png)
+
+***Créez un alias SSH dans ~/.ssh/config pour simplifier les connexions.***
+
+    nano ~/.ssh/config
+
+On édite le fichier de config SSH client sur la machine client.
+
+![Screen7](/TP4/Screen7.png)
+
+`Host` → Nom de l'alias
+
+`HostName` → IP du serveur (VM)
+
+`Port` → Le port SSH utilisé par le serveur
+
+`IdentityFile` → Clé privée du client
+
+`IdentitiesOnly` → Si oui ou non on n'utilise que des clés
+
+![Screen8](/TP4/Screen8.png)
+
+Et après test la connexion avec alias fonctionne maintenant !
+
+### IV. Transfert de fichiers
+
+***Transférez un fichier et un dossier depuis la machine cliente vers le serveur, en utilisant SCP.***
+
+On va copier l'image `Screen1.png` de ce repo vers le bureau de la VM.
+
+    scp -P 2222 ~/repogit/b1_linux/TP4/Screen1.png parallels@10.37.129.10:/home/parallels/Desktop
+
+*(On fait bien attention à préciser le port !!)*
+
+![Screen9](/TP4/Screen9.png)
+
+Après vérification on a la confirmation que la copie a été effectuée...
+
+Copions maintenant le dossier `TP4` en entier au même emplacement...
+
+    scp -r -P 2222 ~/repogit/b1_linux/TP4/ parallels@10.37.129.10:/home/parallels/Desktop
+
+*(On rajoute `-r` pour le mode récursif, comme on a un dossier...)*
+
+![Screen10](/TP4/Screen10.png)
+
+***Explorez les commandes `put`, `get`, `ls` pour transférer et naviguer sur le serveur avec SFTP.***
+
+On va l'utiliser pour se connecter à la VM et y transférer `Screen2.png` pareil que tout à l'heure.
+
+    sftp TP4
+
+Commandes utilisées :
+
+`cd` → se déplacer dans la VM (utiliser `lcd` pour faire la même chose dans le client)
+
+`ls` → afficher les fichiers du dossier actuel dans la VM (équivalent client : `lls`)
+
+`put [nom_fichier]` → mettre le fichier spécifié du dossier actuel du client vers le dossier actuel du serveur (la VM)
+
+![Screen11](/TP4/Screen11.png)
+
+*On utiliserait `get` de la même manière pour transférer dans l'autre sens : télécharger un fichier depuis la VM vers notre client...*
+
+***Avec Rsync, synchronisez un dossier entre client et serveur.***
+
+    rsync -avz --port=2222 ~/repogit/b1_linux/TP4 TP4:/home/parallels/Documents
+
+`-avz` → `a`rchive (copie conforme), `v`erbose (retour CLI), `z` (compression, pour aller plus vite)
+
+![Screen12](/TP4/Screen12.png)
+
+On a bien le retour verbose : tous les fichiers se sont bien transférer, on peut même vérifier...
+
+On réexécute la commande car entre-temps on a rajouté `Screen12.png` !
+
+![Screen13](/TP4/Screen13.png)
+
+On voit que cette fois-ci il n'a été copié que le nouveau fichier, `Screen12.png`, comme prévu !
+
+### V. Analyse des logs et sécurité
+
+***Suivez les logs dʼauthentification pour observer les connexions SSH.***
+
+    sudo tail -f /var/log/auth.log
+
+![Screen14](/TP4/Screen14.png)
+
+On observe ici, par exemple, que la connexion SSH a réussi à 9:22:35 (`Accepted publickey`), et qu'il y a eu connexion en tant que `sudo` (au moment d'afficher le log)...
+
+***Installez Fail2Ban et testez un bannissement après plusieurs tentatives échouées.***
+
+    sudo apt install fail2ban
+
+On utilise `apt` pour installer Fail2Ban sur le système.
+
+    sudo fail2ban-client status sshd
+
+On affiche le statut des bannissements avant d'essayer de forcer la connexion...
+
+Pour le test on a ré-activé l'authentification SSH par mot de passe.
+On essaie alors des mots de passe incorrects pour déclencher Fail2ban.
+
+Au bout d'un moment cela ne fonctionne plus, on se rend compte dans Ubuntu que l'IP du client est bannie...
+
+![Screen15](/TP4/Screen15.png)
+![Screen16](/TP4/Screen16.png)
+
+### VI. Tunnel SSH
+
+***Créez un tunnel local pour accéder à un service web distant depuis la machine cliente.***
+
+    ssh -L 8080:localhost:80 TP4
+
+*(On rajoute `-L 8080:localhost:80` pour relier les ports 8080 du client et localhost:80 de notre VM (que le client puissa eccéder au port 80 de la VM).)*
+
+![Screen17](/TP4/Screen17.png)
+
+La connexion SSH a réussi : le tunnel est ouvert en arrière-plan...
+
+***Créez un tunnel distant pour permettre lʼaccès SSH au client via le serveur.***
+
+    ssh -R 2223:localhost:22 TP4
+
+*(Ici, à l'inverse, grâce à `-R`, on relie le port 2223 de la VM au localhost:22 de notre client, pour que la VM puisse accéder au port 22 du client.)*
+
+![Screen18](/TP4/Screen18.png)
+
+Une fois de plus la connexion SSH a réussi, le tunnel est ouvert.
+
+### VII. Nginx et HTTPS
+
+***Installez Nginx sur la VM.***
+
+    sudo apt install nginx
+
+On utilise `apt` pour installer Nginx...
+
+***Créez un site test dans `/var/www/site-tp` et un fichier `index.html` avec un message de bienvenue. Configurez Nginx pour servir ce site sur HTTP.***
+
+On commence par créer le dossier du site test puis la page HTML...
+
+    sudo mkdir -p /var/www/site-tp
+    sudo nano /var/www/site-tp/index.html
+
+On crée ensuite un fichier de configuration, en l'éditant comme illustré :
+
+    sudo nano /etc/nginx/sites-available/site-tp
+
+![Screen19](/TP4/Screen19.png)
+
+`listen` → on spécifie le port sur lequel écouter ;
+
+`server_name` → définit à quoi répond ce bloc (la wildcard `_` correspond à *tout*) ;
+
+`root` → on indique l'emplacement du site ;
+
+`index` → on indique aussi quel fichier est l'index (la page principale) ;
+
+`location` → définit comment Nginx doit réagir quand on accède à la racine du site (vérifie si le site existe)...
+
+On n'oublie pas d'activer le site `site-tp` en créant un lien symbolique de notre config dans le dossier `/etc/nginx/sites-enabled/` (on supprime aussi la config par défaut) ; et de redémarrer Nginx.
+
+    sudo ln -s /etc/nginx/sites-available/site-tp /etc/nginx/sites-enabled/
+    sudo rm /etc/nginx/sites-enabled/default
+    sudo systemctl restart nginx
+
+Et on vérifie si ça fonctionne depuis le client :
+
+    curl -k http://10.37.129.10
+
+*(L'option `-k` de `curl` permet d'ignorer la vérification du certificat SSL : ce n'est pas utile ici, mais ça le sera juste après car le certificat SSL que l'on va créer est auto-signé...)*
+
+![Screen20](/TP4/Screen20.png)
+
+***Générez un certificat auto-signé pour HTTPS et configurez la redirection HTTP → HTTPS.***
+
+    sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt
+
+On utilise ici `openssl` pour générer une clé privée et un certificat pour HTTPS :
+
+`req` → on utilise le module de gestion des demandes de signature de certificat ;
+
+`-x509` → transforme la demande en un certificat auto-signé ;
+
+`-nodes` → ne pas chiffrer la clé privée avec un mot de passe ;
+
+`-days 365` → on spécifie une durée de validité d'1 an pour le certificat ;
+
+`-newkey rsa:2048` → on fait créer en même temps la clé privée RSA 2048 bits correspondante ;
+
+`-keyout` → on indique l'emplacement de création de la clé privée ;
+
+`-out` → enfin on spécifie l'emplacement de création du certificat...
+
+Maintenant, on va mettre à jour la configuration de notre site sur Nginx pour automatiquement rediriger les requêtes HTTP vers HTTPS...
+
+    sudo nano /etc/nginx/sites-available/site-tp
+
+... on la met alors à jour comme illustré :
+
+![Screen21](/TP4/Screen21.png)
+
+- Sur le bloc HTTP, on a remplacé les chemins de site (maintenant traités par HTTPS) par justement la redirection vers HTTPS (`return`) ;
+
+- On a également rajouté le bloc HTTPS sous le bloc HTTP, avec le port 443 (HTTPS), les chemins du site auparavant sur le bloc HTTP, et en rajoutant les chemins vers les certificats générés (`ssl_certificate` et `ssl_certificate_key`)...
+
+Enfin on redémarre Nginx pour appliquer les changements.
+
+    sudo systemctl restart nginx
+
+***Testez le site depuis le client.***
+
+    curl -kL http://10.37.129.10
+    curl -k https://10.37.129.10
+
+![Screen22](/TP4/Screen22.png)
+
+On voit que les requêtes HTTP et HTTPS fonctionnent bien, ce qui veut dire que :
+- les requêtes HTTP sont bien redirigées vers HTTPS (avec argument `L` qui permet la redirection) ;
+- les requêtes HTTPS de base fonctionnent bien !
+
+### VIII. Firewall et permissions
+
+***Autorisez Nginx dans le firewall (ports HTTP/HTTPS).***
+
+    sudo ufw allow 'Nginx Full'
+    sudo ufw enable
+    sudo ufw status
+
+Ici, on a ajouté la règle "Nginx Full" à notre pare-feu (pour ouvrir les deux ports, HTTP et HTTPS, d'un coup) ; on l'a ensuite activé et on a checké son statut pour être sûr que tout est en ordre...
+
+![Screen23](/TP4/Screen23.png)
+
+*(Par précaution on a re-testé `curl` depuis le client et ça fonctionne toujours...)*
+
+***Vérifiez les permissions sur `/var/www/site-tp` pour que Nginx puisse lire les fichiers.***
+
+    sudo chown -R www-data:www-data /var/www/site-tp
+
+On commence par utiliser `chown` pour définir le propriétaire de notre dossier site (+ son contenu → mode récursif `-R`) sur `www-data` (user qui exécute le serveur Nginx), ainsi que le groupe du même nom (→ `:www-data`)...
+
+    sudo chmod -R 775 /var/www/site-tp
+
+Et pour finir avec les permissions, on utilise `chmod` (toujours en mode récursif sur le dossier entier) pour définir celle du propriétaire (Xxx) et du groupe (xXx) sur 7 (lecture/écriture/exécution), et celle des autres (xxX) sur 5 (lecture/exécution).
+
+    ls -lR /var/www
+
+Enfin on peut utiliser `ls -lR` pour lister le contenu de `www` ainsi que ses permissions. Le but étant de s'assurer que les permissions de `site-tp` et `index.html` sont correctes (c'est le cas)...
+
+![Screen24](/TP4/Screen24.png)
+
+(On n'a laissé que `site-tp` dans le dossier pour un output propre.)
+
+### IX. Validation finale
+
+***SSH fonctionnel sur port personnalisé et authentification par clé uniquement.***
+
+![Screen5](/TP4/Screen5.png)
+
+- Port : `Port 2222`
+- Authentification par clé : `PubkeyAuthentication yes` `PasswordAuthentication no`
+
+✔ SSH est bien configuré de manière à n'accepter que les clés, sur le port 2222.
+
+***Fail2Ban actif et opérationnel.***
+
+![Screen15](/TP4/Screen15.png)
+![Screen16](/TP4/Screen16.png)
+
+✔ Fail2Ban est bien opérationnel : *quelques* tentatives infructueuses de connexion par mot de passe et l'IP du client se retrouve bannie.
+
+***Transferts de fichiers fonctionnels (SCP, SFTP, RSYNC).***
+
+**SCP**
+
+![Screen9](/TP4/Screen9.png)
+
+**SFTP**
+
+![Screen11](/TP4/Screen11.png)
+
+**RSYNC**
+
+![Screen12](/TP4/Screen12.png)
+
+✔ Les transferts de fichiers fonctionnent pour les 3 protocoles.
+
+***Nginx accessible en HTTP et HTTPS avec redirection automatique HTTP → HTTPS.***
+
+![Screen22](/TP4/Screen22.png)
+
+✔ `curl` fonctionne en HTTP (redirection auto) et en HTTPS depuis le client.
+
+***Certificat SSL auto-signé valide.***
+
+    openssl x509 -checkend 0 -noout -in /etc/ssl/certs/nginx-selfsigned.crt
+
+On utilise cette commande pour vérifier si le certificat a expiré ou non : 
+
+`Certificate will not expire` : le certificat est encore valide
+
+`Certificate will expire` : le certificat est expiré
+
+![Screen25](/TP4/Screen25.png)
+
+✔ Le certificat SSL auto-signé est encore valide.
+
+***Firewall configuré et permissions correctes sur `/var/www/site-tp`.***
+
+![Screen23](/TP4/Screen23.png)
+
+✔ Firewall activé avec règles relatives à Nginx.
+
+![Screen24](/TP4/Screen24.png)
+
+✔ Permissions correctes pour `site-tp` et `index.html` (`rwxrwxr-x` = `775`).
