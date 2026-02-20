@@ -1124,3 +1124,42 @@ On utilise cette commande pour vérifier si le certificat a expiré ou non :
 ![Screen24](/TP4/Screen24.png)
 
 ✔ Permissions correctes pour `site-tp` et `index.html` (`rwxrwxr-x` = `775`).
+
+## TP 5
+
+### I. Prise en main et sécurisation
+
+#### A. Accès à l'interface
+
+***Question 1 : Quelle sont les adresses IP du LAN et du WAN ?***
+
+L'adresse IP du LAN est `192.168.128.2`. C'est cette IP qu'on utilise pour accéder à l'interface web de pfSense.
+
+On peut directement retrouver l'IP du WAN, (avec celle du LAN) sur le tableau de bord, sous la carte "Interfaces" : on a `192.168.64.2`.
+
+![Screen1](/TP5/Screen1.png)
+
+***Question 2 : Pourquoi utilise-t-on HTTPS ?***
+
+Étant donné que pfSense est un pare-feu, il est essentiel de garantir que sa gestion ne devienne pas une faille de sécurité de l'infrastructure. Ainsi, les données sont chiffrées avant de quitter l'ordinateur : même interceptées (ex. attaque "Man in the Middle"), elles sont illisibles.
+
+***Question 3 : Pourquoi faut-il changer les identifiants par défaut sur un pare-feu ?***
+
+Là aussi, il s'agit de le sécuriser : on cherche à limiter au maximum tout risque d'intrusion dans l'infrastructure.
+
+#### B. Sécurisation de lʼaccès administrateur
+
+***Modifiez les paramètres du compte administrateur.***
+
+
+
+***Question 1 : Où se gèrent les utilisateurs ?***
+
+
+
+***Question 2 : Quʼest-ce quʼun mot de passe robuste ?***
+
+
+
+***Question 3 : Pourquoi sécuriser en priorité lʼaccès admin sur un équipement réseau ?***
+
