@@ -1204,3 +1204,94 @@ Le pare-feu attend la connexion Internet sur le WAN et ainsi bloque les connexio
 **Côté LAN ← WAN**
 
 Pire encore de ce côté on aurait une faille de sécurité critique : l'interface d'administration (WebGUI) serait ouverte par défaut sur le LAN. En mettant Internet sur le port LAN, la gestion du pare-feu est exposée au monde entier, permettant à n'importe qui de tenter de s'y connecter.
+
+### III. Configuration des services réseau
+
+*(On créera au préalable une autre machine virtuelle sous Ubuntu, qui servira de client pour les services et fonctionnalités que l'on activera par la suite, à commencer par DHCP...)*
+
+#### A. DHCP
+
+***Configurez le serveur DHCP pour le réseau LAN.***
+
+Pour configurer le serveur DHCP de pfSense, on se rend dans le menu Services → DHCP Server. Ici, il nous suffit de cocher l'option "Enable DHCP server on LAN interface" et de cliquer sur "Save" en bas de page, étant donné que les paramètres par défaut sont cohérents avec ce que l'on veut...
+
+![Screen5](/TP5/Screen5.png)
+
+***Question 1 : Pourquoi utiliser DHCP plutôt quʼune IP fixe ?***
+
+On utilise DHCP pour attribuer automatiquement une IP à chaque nouvel appareil connecté au réseau, un peu comme dans un réseau domestique classique — en fait, si on rajoute pfSense entre le routeur et les appareils connectés dans un réseau domestique, cela permet de continuer à attribuer les IPs automatiquement sans risque de causer une erreur humaine...
+
+En effet, sans serveur DHCP, on devrait attibuer manuellement une IP à chaque appareil, en veillant à chaque fois à ne pas attribuer une IP déjà prise...
+
+En somme, DCP permet donc une gestion centralisée et automatisée des IPs, mais aussi du masque du sous-réseau, de la passerelle, des serveurs DNS...
+
+***Question 2 : Quelle plage dʼadresses choisir ? Quelles adresses faut-il éviter dʼinclure dans la plage ?***
+
+On doit choisir une plage d'adresses qui font toutes partie de notre sous-réseau (ici, `192.168.128.0`). La plage d'adresses ne doit pas non plus inclure :
+- le serveur DHCP lui-même `192.168.128.2`,
+- l'hôte de la VM `192.168.128.1`,
+- ou l'adresse broadcast `192.168.128.255`.
+
+Ici, on laisse donc `192.168.128.11 - 192.168.128.245`, assez vaste et qui évite également d'inclure des IPs que l'on réserverait à d'autres choses (ex. imprimantes, serveurs, switchs... en IP statique)...
+
+***Vérifier si la VM Ubuntu obtient automatiquement une IP.***
+
+> Dans cette configuration précise, UTM utilise une interface réseau spéciale de macOS (`bridge101`). Cette interface utilise un serveur DHCP, alimenté par le processus `bootpd`. Il n'est pas désactivable, on est donc obligé de l'empêcher de s'exécuter, en exécutant un `killall` en boucle dans le Terminal...
+
+>     while true; do sudo killall bootpd 2>/dev/null; done
+
+> Pendant ce temps on efface la configuration du serveur DHCP macOS de Ubuntu :
+
+>     sudo systemctl stop NetworkManager
+>     sudo rm -f /var/lib/NetworkManager/*.lease
+>     sudo rm -f /var/lib/dhcp/dhclient.leases
+>     sudo ip addr flush dev enp0s2; sudo dhclient -v enp0s2
+>     sudo systemctl start NetworkManager
+
+Maintenant que le serveur DHCP de macOS est "neutralisé", Ubuntu prend celui de pfSense...
+
+![Screen6](/TP5/Screen6.png)
+
+L'IPv4 de l'interface LAN de Ubuntu est à présent la première de la plage définie dans pfSense, on a donc bien la confirmation que c'est le DHCP de pfSense qui a attribué l'IP...
+
+Enfin côté des baux DHCP sur l'interface web de pfSense (menu Status → DHCP Leases), on a bien une machine "Ubuntu" qui a pour IP la première de la plage définie...
+
+![Screen7](/TP5/Screen7.png)
+
+#### B. DNS
+
+***Activez et configurez le résolveur DNS.***
+
+On se rend dans les paramètres DNS de pfSense (menu Services → DNS Resolver). Celui-ci est activé par défaut, il ne reste plus qu'à le configurer.
+
+- On commence par changer "Network Interfaces" en LAN. Cela évite que le résolveur ne réponde à des requêtes venant de l'extérieur (WAN).
+
+- À l'inverse on change "Outgoing Network Interfaces" en WAN. C'est par cette interface que pfSense interrogera les serveurs DNS racines sur Internet, donc aucun intérêt d'inclure le réseau interne (LAN).
+
+![Screen8](/TP5/Screen8.png)
+
+C'est pour l'instant tout ce que l'on aura à configurer pour ce qui est du résolveur DNS. On peut enregistrer les changements de configuration en cliquant sur Save en bas de page...
+
+Enfin on clique sur "Apply Changes" quand ce message s'affiche... :
+
+![Screen9](/TP5/Screen9.png)
+
+On peut alors tester sur Ubuntu si tout est en ordre :
+
+    resolvectl status
+
+On regarde quel serveur DNS est utilisé (ici, `192.168.128.2` soit pfSense)...
+
+    nslookup google.com
+
+...et on teste pour voir si le DNS résoud bien les noms de domaine en IP : là aussi ça fonctionne !
+
+![Screen10](/TP5/Screen10.png)
+
+***Question 1 : Pourquoi un pare-feu peut-il jouer le rôle de serveur DNS ?***
+
+Une fois de plus cela a l'avantage de simplifier la centralisation et l'automatisation des paramètres pour toutes les machines du réseau, mais le principal avantage reste qu'en contrôlant le DNS, le pare-feu peut bloquer l'accès à des sites malveillants ou interdits dès la requête du nom, avant même que la connexion ne soit établie. Il y a aussi des logs qui permettent à l'administrateur de voir quels domaines sont consultés par les utilisateurs du réseau.
+
+***Question 2 : Que se passe-t-il si le DNS ne fonctionne pas mais que le ping vers 8.8.8.8 fonctionne ?***
+
+Si le Ping fonctionne mais pas le DNS, cela veut dire que la connexion Internet fonctionne, mais la machine est incapable de traduire un nom de domaine (ex. google.com) en IP : impossible d'accéder aux sites...
