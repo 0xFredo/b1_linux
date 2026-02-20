@@ -1151,15 +1151,56 @@ Là aussi, il s'agit de le sécuriser : on cherche à limiter au maximum tout ri
 
 ***Modifiez les paramètres du compte administrateur.***
 
+On va modifier le mot de passe du compte `admin` : on se rend dans le menu System → User Manager et on clique sur le crayon pour modifier les paramètres du compte. On saisit alors un nouveau mot de passe dans les champs "Password" :
 
+![Screen2](/TP5/Screen2.png)
+
+... et on enregistre en cliquant sur le bouton "Save" en bas de page.
 
 ***Question 1 : Où se gèrent les utilisateurs ?***
 
-
+Comme on a pu le voir ici, les utilisateurs se gèrent dans le menu System → User Manager. On a alors une liste des utilisateurs, on peut alors ajouter des utilisateurs, en supprimer, et modifier leurs paramètres...
 
 ***Question 2 : Quʼest-ce quʼun mot de passe robuste ?***
 
-
+En principe, un mot de passe robuste est, d'un point de vue syntaxe, composé de majuscules, minuscules, chiffres, caractères spéciaux, et globalement d'au moins 12 caractères ; et d'un point de vue humain, non commun et impossible à deviner.
 
 ***Question 3 : Pourquoi sécuriser en priorité lʼaccès admin sur un équipement réseau ?***
 
+On sécurise en priorité l'accès admin car c'est celui-ci qui ne doit être compromis sous aucun prétexte : si un attaquant prend le contrôle du pfSense, il prend le contrôle de tout ce qui entre et sort de l'infrastructure, du réseau...
+
+### II. Comprendre les interfaces réseau
+
+***Vérifiez lʼaffectation des interfaces WAN / LAN.***
+
+On doit vérifier que l'interface "WAN" de pfSense correpsond à la carte "Réseau partagé" d'UTM ; et que l'interface LAN correspond à la carte "Hôte uniquement"...
+
+![Screen3](/TP5/Screen3.png)
+
+- MAC Réseau partagé : `CA:32:32:42:75:18` → on doit avoir la même pour WAN
+- MAC Hôte uniquement : `8E:92:6E:43:B9:4D` → on doit avoir la même pour LAN
+
+![Screen4](/TP5/Screen4.png)
+
+- MAC WAN : `CA:32:32:42:75:18`
+- MAC LAN : `8E:92:6E:43:B9:4D`
+
+Les affectations sont correctes.
+
+***Question 1 : Quelle interface permet lʼaccès Internet ?***
+
+L'interface WAN (Wide Area Network) permet l'accès à Internet : c'est par cette carte que passeront les paquets échangés avec le réseau externe.
+
+***Question 2 : Quelle interface correspond au réseau interne ?***
+
+Pour le réseau interne c'est l'interface LAN (Local Area Network) qui gère les paquets. C'est le réseau local, qui permet notamment la gestion web de pfSense.
+
+***Question 3 : Que se passerait-il si les interfaces étaient inversées ?***
+
+**Côté WAN ← LAN**
+
+Le pare-feu attend la connexion Internet sur le WAN et ainsi bloque les connexions entrantes non sollicitées sur cette interface. Si les PC du LAN sont sur le WAN, toutes leurs requêtes seront bloquées par ces règles de sécurité...
+
+**Côté LAN ← WAN**
+
+Pire encore de ce côté on aurait une faille de sécurité critique : l'interface d'administration (WebGUI) serait ouverte par défaut sur le LAN. En mettant Internet sur le port LAN, la gestion du pare-feu est exposée au monde entier, permettant à n'importe qui de tenter de s'y connecter.
