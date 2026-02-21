@@ -1295,3 +1295,86 @@ Une fois de plus cela a l'avantage de simplifier la centralisation et l'automati
 ***Question 2 : Que se passe-t-il si le DNS ne fonctionne pas mais que le ping vers 8.8.8.8 fonctionne ?***
 
 Si le Ping fonctionne mais pas le DNS, cela veut dire que la connexion Internet fonctionne, mais la machine est incapable de traduire un nom de domaine (ex. google.com) en IP : impossible d'accéder aux sites...
+
+### IV. Autoriser lʼaccès Internet
+
+#### A. Règles de pare-feu
+
+***Configurez les règles nécessaires pour permettre aux machines du LAN dʼaccéder à Internet.***
+
+On se rend dans le menu Firewall → Rules → LAN de pfSense.
+
+![Screen11](/TP5/Screen11.png)
+
+Dans un premier temps on va supprimer les règles par défaut : elles autorisent tout le trafic sans restriction. On coche alors les deux règles, et on clique sur le bouton "Delete".
+
+On va maintenant configurer 4 règles : une pour le DNS, une pour HTTP, une pour HTTPS, et une pour Ping ; en cliquant sur le bouton "Add" avec une flèche vers le haut (pour les ajouter en début de liste). On paramètre alors nos règles :
+
+**DNS**
+
+![Screen12](/TP5/Screen12.png)
+
+**HTTP**
+
+![Screen13](/TP5/Screen13.png)
+
+**HTTPS**
+
+![Screen14](/TP5/Screen14.png)
+
+**Ping**
+
+![Screen15](/TP5/Screen15.png)
+
+La liste de règles après application des changements devrait maintenant ressembler à cela :
+
+![Screen16](/TP5/Screen16.png)
+
+***Question 1 : Quelle doit être la source ? la destination ?***
+
+Ici, la source est toujours la même : "LAN net". Cette option correspond à tout le réseau local (LAN), la règle s'applique donc à tous les appareils connectés.
+
+La destination, elle, varie selon les règles : pour le DNS on a fait exprès de mettre "LAN address" uniquement (cette option correspond à pfSense uniquement, pertinent ici car c'est lui le serveur DNS) ; et pour les autres règles on met "any" pour pouvoir accéder à tout l'Internet.
+
+***Question 2 : Faut-il autoriser tous les protocoles ?***
+
+Évidemment, non, on n'autorise pas tous les protocoles. C'est le principe du "moindre privilège" : on n'autorise que ce dont on a besoin. Ici, en n'autorisant que DNS, le Web, et Ping, on s'assure qu'un logiciel malveillant ne pourra pas utiliser d'autres canaux pour communiquer avec l'extérieur.
+
+***Testez un Ping vers pfSense, puis vers `8.8.8.8`.***
+
+![Screen17](/TP5/Screen17.png)
+
+✔ Du côté Ping tout semble en ordre
+
+***Faites aussi un test DNS.***
+
+    nslookup google.com
+
+> Cette commande sert à traduire un nom de domaine en IP.
+
+![Screen18](/TP5/Screen18.png)
+
+✔ DNS a réussi à trouver l'IP de `google.com` : là aussi ça fonctionne
+
+***Enfin essayez d'accéder au web.***
+
+![Screen19](/TP5/Screen19.png)
+
+✔ On peut librement accéder à Internet (ex. YouTube).
+
+#### B. NAT
+
+***Vérifiez la configuration du NAT sortant.***
+
+
+
+***Question 1 : Pourquoi le NAT est-il nécessaire avec une interface WAN en NAT ?***
+
+
+
+***Question 2 : Quelle est la différence entre NAT automatique et manuel ?***
+
+
+
+***Question 3 : Comment vérifier quʼune traduction dʼadresse a lieu ?***
+
