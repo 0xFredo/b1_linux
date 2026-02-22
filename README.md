@@ -1376,15 +1376,99 @@ Ping ne fonctionne plus, et des logs indiquent que le pare-feu a bloqué des req
 
 ***Vérifiez la configuration du NAT sortant.***
 
+On se rend dans le menu Firewall → NAT → Outbound.
 
+Ici on voit bien que le NAT est en mode "Automatic outbound NAT rule generation" : pfSense crée lui-même les règles de traduction nécessaires (d'IP privée en IP publique) pour que le réseau fonctionne immédiatement.
+
+On voit aussi que la règle "Auto created rule" envoie les paquets du LAN vers le WAN après translation d'IP.
+
+![Screen21](/TP5/Screen21.png)
 
 ***Question 1 : Pourquoi le NAT est-il nécessaire avec une interface WAN en NAT ?***
 
-
+Ici, le NAT est nécessaire car Ubuntu utilise une adresse IP privée (192.168.128.11) qui est invalide sur Internet (il faut une IP publique, et le rôle du NAT est justement de faire la translation).
 
 ***Question 2 : Quelle est la différence entre NAT automatique et manuel ?***
 
-
+Dans le cas d'un NAT automatique, c'est pfSense qui gère les règles de translation des IPs privées en IPs publiques. Cela garantit que tout nouveau réseau aura accès à Internet sans intervention de l'admin. Cependant, si le NAT est manuel, il faudra manuellement créer une règle par réseau (ce qui peut permettre un contrôle plus précis, exemple par machine, par port...).
 
 ***Question 3 : Comment vérifier quʼune traduction dʼadresse a lieu ?***
 
+On peut se rendre dans le menu Diagnostics → States de pfSense.
+
+![Screen22](/TP5/Screen22.png)
+
+Ici on peut observer les translations d'IP en cours :
+
+- `192.168.128.11` → `192.168.128.2` : Ubuntu → pfSense (LAN)
+- `192.168.64.2` (`192.168.128.11`) → `34.107.221.82` : pfSense (WAN) → Internet
+
+- > En somme : `192.168.128.11` → (pfSense) → `34.107.221.82`
+
+✔ La traduction d'adresse a bien eu lieu !
+
+### V. Filtrage
+
+#### A. Blocage dʼun site spécifique
+
+***Question 1 : Faut-il bloquer par IP ou par nom de domaine ?***
+
+On privilégie le blocage par nom de domaine, car un seul domaine peut utiliser plusieurs IPs, et qui changent constamment. Bloquer le nom de domaine permet de bloquer toutes les IPs d'un site, qu'elles changent ou non.
+
+***Question 2 : Que se passe-t-il si le site utilise HTTPS ?***
+
+Lors de l'établissement de la connexion, le pare-feu peut identifier le nom du serveur via le DNS (bien que le flux soit chiffré). Il peut donc bloquer la connexion d'entrée. Le navigateur affichera alors une erreur "Délai d'attente dépassé" ou "Échec de la connexion sécurisée".
+
+***Question 3 : Pourquoi le blocage par IP peut-il être contourné ?***
+
+Un blocage par IP pourrait facilament être contourné premièrement car un site peut posséder plusieurs IPs différentes (il suffirait d'en prendre une qui n'est pas bloquée) ; ou en utilisant un VPN...
+
+Bloquer un site par son IP peut aussi s'avérer problématique, par exemple si le site utilise un hébergeur tel que Cloudflare, car cela pourrait aussi bloquer des centaines d'autres sites légitimes qui partagent la même adresse
+
+***Bloquez lʼaccès à un site web de votre choix.***
+
+On va donc chercher à bloquer un site par son nom de domaine et non par son IP. Cependant, on ne peut pas directement créer une règle de pare-feu pour un nom de domaine : seulement pour une IP ou un alias.
+
+Nous allons donc commencer créer un alias pour bloquer Instagram : menu Firewall → Aliases, et on cliquer sur le bouton "Add". On entre alors un nom d'alias et le nom de domaine à bloquer, on sauvegarde et on applique les changements.
+
+![Screen23](/TP5/Screen23.png)
+
+On retourne dans le menu Firewall → Rules → LAN. Là aussi on ajoute une règle en haut de la liste (pour qu'elle passe en priorité sur les autres). Cette fois-ci on sélectionne "Block" comme action, et en destination on sélectionne notre alias "Instagram". On enregistre et on applique la nouvelle règle.
+
+![Screen24](/TP5/Screen24.png)
+
+***Testez et observez les logs.***
+
+![Screen25](/TP5/Screen25.png)
+
+On essaie de Ping Instagram, mais on dirait qu'il n'y a pas de réponse.
+
+![Screen26](/TP5/Screen26.png)
+
+Du côté pare-feu, le diagnostic est confirmé : le pare-feu bloque nos requêtes vers Instagram.
+
+#### B. Blocage dʼune catégorie de sites (jeux dʼargent)
+
+***Créez une solution propre et maintenable pour bloquer plusieurs sites.***
+
+Là aussi, on va utiliser un alias, qui cette fois ne servira plus à bloquer un seul site spécifique, mais bien plusieurs sites d'un seul coup. Cela nous permet d'arriver à un résultat propre, optimisé, et fonctionnel, avec un seul alias et une seule règle.
+
+On répète la marche à suivre (menu Firewall → Aliases) pour créer un alias, sauf que cette fois-ci on ajoutera plusieurs noms de domaine (en cliquant sur "Add Host"), comme illustré :
+
+![Screen27](/TP5/Screen27.png)
+
+On ajoute ensuite la règle correspondante dans le pare-feu du LAN, et on enregistre les changements de configuration.
+
+![Screen28](/TP5/Screen28.png)
+
+On essaie là aussi de Ping les 3 sites bloqués : pas de réponse, les logs de pfSense confirment que le pare-feu bloque ces sites.
+
+![Screen29](/TP5/Screen29.png)
+
+**Rappel :** Pour que les refus de paquets soient loggés par pfSense, il faut cocher l'option "Log packets that are handled by this rule" sur la règle correspondante...
+
+***Question : Pourquoi ne pas créer une règle par site ?***
+
+Comme expliqué précédemment, on crée une règle, pour un alias, pour plusieurs sites à la fois premièrement car c'est plus simple et rapide d'ajouter plusieurs sites dans une même liste, plutôt de créer règle + alias à chaque fois (il en va de même pour ajouter ou supprimer un site de la liste, il suffit simplement de modifier l'alias). Cela évite aussi d'avoir une liste de règles et d'alias immense et illisible : à la place un a une seule blacklist.
+
+Enfin, moins il y a de règles à parcourir pour chaque paquet qui traverse le réseau, plus le traitement est rapide et efficace pour le processeur du pare-feu : en somme c'est plus optimisé.
