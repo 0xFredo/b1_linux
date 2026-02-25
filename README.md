@@ -1472,3 +1472,256 @@ On essaie là aussi de Ping les 3 sites bloqués : pas de réponse, les logs de 
 Comme expliqué précédemment, on crée une règle, pour un alias, pour plusieurs sites à la fois premièrement car c'est plus simple et rapide d'ajouter plusieurs sites dans une même liste, plutôt de créer règle + alias à chaque fois (il en va de même pour ajouter ou supprimer un site de la liste, il suffit simplement de modifier l'alias). Cela évite aussi d'avoir une liste de règles et d'alias immense et illisible : à la place un a une seule blacklist.
 
 Enfin, moins il y a de règles à parcourir pour chaque paquet qui traverse le réseau, plus le traitement est rapide et efficace pour le processeur du pare-feu : en somme c'est plus optimisé.
+
+### VI. Aller plus loin
+
+#### A. Blocage par catégorie (réseaux sociaux)
+
+***Créez un alias pour une nouvelle catégorie et implémentez une règle.***
+
+*(Pour un résultat propre, pour cette règle "réseaux sociaux", on supprimera au préalable la règle "Instagram" déjà définie, ainsi que l'alias correspondant...)*
+
+On crée donc l'alias "Social_Media" (Firewall → Aliases) :
+
+![Screen30](/TP5/Screen30.png)
+
+... ainsi que la règle correspondante (là aussi on bloque donc les réseaux sociaux dans Firewall → Rules → LAN) :
+
+![Screen31](/TP5/Screen31.png) 
+
+***Analysez les logs.***
+
+Toujours dans le menu Status → System Logs → Firewall :
+
+![Screen32](/TP5/Screen32.png)
+
+On voit ici que le pare-feu bloque des tentatives de Ping depuis notre VM Ubuntu vers différentes IPs (qui correspondent aux réseaux sociaux que nous avons interdits) : c'est bien la règle que nous venons de définir qui bloque ces Ping.
+
+***Question : Que se passe-t-il si la règle est placée sous une règle "Pass Any" ?***
+
+Toute règle placée sous une règle "Pass Any" ou "Deny Any" est ignorée : étant que plus la règle est haute, plus sa priorité est élevée, c'est elle qui s'appliquera par dessus les autres qui la suivent.
+
+#### B. Règles horaires
+
+***Créez un horaire et appliquez-le à une règle existante.***
+
+Pour créer un horaire on va dans le menu Firewall → Schedules. On clique sur le bouton "Add".
+
+On va maintenant donner un nom à notre nouvel horaire et sélectionner les plages de déclenchement. On clique alors sur les jours concernés sur le calendrier, puis sur la plage horaire de déclenchements pour les jours sélectionnés. On clique sur "Add Time" pour ajouter la plage sélectionnée à l'horaire, et on finit sa création...
+
+On prend le scénario d'horaires d'étudiants qui n'ont cours que le matin, de 9h à 13h, les jours de la semaine. On effectue donc les sélections adéquates, et on enregistre...
+
+![Screen33](/TP5/Screen33.png)
+
+On va maintenant appliquer notre horaire sur notre règle qui bloque les réseaux sociaux : ainsi (en suivant notre scénario) ceux-ci seront bloqués pendant les horaires de cours et autorisés à la sortie.
+
+On retourne dans notre menu de règles de pare-feu : on édite notre règle en cliquant sur l'icône de crayon. On ouvre les paramètres avancés en cliquant sur le bouton "Display Advanced" et on cherche le paramètre "Schedule". On sélectionne alors notre horaire (comme illustré ci-dessous), et on enregistre notre règle...
+
+![Screen34](/TP5/Screen34.png)
+
+On peut maintenant voir que notre horaire est appliqué à la règle et est en marche (on est le 23 février, 11h06) :
+
+![Screen35](/TP5/Screen35.png)
+
+...et on peut même regarder dans les logs pendant des Ping vers nos IP interdites par la règle, pendant l'horaire, et après l'horaire...
+
+![Screen36](/TP5/Screen36.png)
+
+***Question : Pourquoi les règles horaires sont-elles utiles en entreprise ?***
+
+En entreprise, les règles horaires peuvent être utiles pour plusieurs raisons : elles permettent d'automatiser la coupure de sites non-essentiels (ex. réseaux sociaux) pendant les horaires de travail, afin notamment de préserver  la bande passante, réduire les distractions, ...
+
+#### C. Serveur web local
+
+***Installez un serveur web sur Ubuntu, pour autoriser un accès spécifique et bloquer les autres.***
+
+Pour autoriser un accès spécifique et bloquer les autres, on va encore configurer de nouvelles règles dans notre pare-feu pfSense.
+
+- Une règle pour autoriser uniquement les connexions sur le port 80 (HTTP) ;
+- Une règle (juste en dessous) pour bloquer tout le reste...
+
+On n'oublie pas de les mettre en haut de liste pour ne pas qu'elles soient ignorées par une règle plus (ou moins) restrictive.
+
+![Screen37](/TP5/Screen37.png)
+
+*(L'environnement de virtualisation ne permet pas de tester ces règles : le LAN virtuel est ici comme un switch, donc les connexions entre appareils de ce switch sont directes, en ignorant la route. Les connexions ne passent pas par pfSense, ce qui rend le blocage impossible......)*
+
+***Question 1 : Filtrer par IP source ? par port ?***
+
+On filtre par IP *et* par port : cela permet de limiter le filtrage à une machine précise (ici notre serveur Nginx), et en complément à un port en particulier à autoriser exclusivement sur cette machine...
+
+***Question 2 : Pourquoi le pare-feu protège-t-il le LAN même en réseau interne ?***
+
+Dans un réseau de travail par exemple, cela permet de loguer et contrôler l'activité en réseau, on limite aussi les risques de propagation d'un virus d'un appareil du LAN vers d'autres appareils du réseau, et on cloisonne les services (ex. la compta qui n'a pas à accéder aux caméras...).
+
+#### D. Logs et analyse
+
+***Activez la journalisation sur certaines règles.***
+
+Comme on a pu le voir dans les précédentes étapes, pour journaliser certaines règles, on active l'option "Log packets that are handled by this rule".
+
+Ainsi, dans le menu Status → System Logs → Firewall, on a maintenant une liste des paquets autorisés et des paquets bloqués, et quelle règle s'est occupé de quel paquet.
+
+Par exemple, en essayant de Ping `8.8.8.8` (autorisé par notre règle "Allow Ping"), il s'affichera dans nos logs une ligne avec :
+- une coche verte,
+- l'heure exacte du Ping,
+- l'interface utilisée,
+- la règle qui l'a laissé passé ("Allow Ping"),
+- l'IP locale de la machine qui a fait la requête de Ping (ex. notre VM `192.168.128.11`),
+- l'IP de la destination (ici `8.8.8.8`)
+- le protocole utilisé par le paquet (ici ICMP).
+
+Si toutefois on essaie de Ping un réseau social pendant que notre horaire est actif, le paquet sera bloqué, et le log contiendra une ligne avec notamment une croix rouge.
+
+Exemple de tout à l'heure :
+
+> *Cf. `Screen36` [B. Règles horaires](#b-règles-horaires) ![Screen36](/TP5/Screen36.png)*
+
+***Question 1 : Quelle est la différence entre paquet bloqué et autorisé ?***
+
+Comme expliqué précédemment, un paquet bloqué (noté d'une croix rouge dans les logs) est un paquet qui s'arrêtera au pare-feu, et qui n'arrivera jamais à destination.
+
+Un paquet autorisé (coche verte) en passant par le pare-feu, est un paquets qu'il va laisser passer, pour continuer son chemin vers la destination.
+
+***Question 2 : Quelle règle a déclenché le blocage ?***
+
+Ici (toujours dans notre cas de [règles horaires](#b-règles-horaires)), c'est à la fois la règle "Allow Ping" qui a déclenché le blocage avant 13h, et qui l'a stoppé après.
+
+#### E. Filtrage MAC
+
+***Testez le filtrage par adresse MAC.***
+
+Pour filtrer des paquets, par exemple un ping vers `8.8.8.8.` par adresse MAC, on va créer une nouvelle règle dans le firewall. On choisira ici d'autoriser le Ping pour une seule de nos deux VM Ubuntu.
+
+Comme pour nos noms de domaine, on ne peut pas non plus mettre une adresse MAC dans une règle pour la filtrer. On ne peut pas non plus utiliser d'alias cette fois-ci.
+On va devoir commencer par créer un bail DHCP statique dans le menu Services → DHCP Server. On descend tout en bas, et on clique sur le bouton vert "Add", sous la section "DHCP Static Mappings for this Interface".
+- On met la MAC de la machine dans le champ "MAC Address" ;
+- On met l'IP fixe à attribuer devant "IP Address" ;
+- On met un petit nom dans le champ "Hostname" ; 
+- Et on coche l'option "ARP Table Static Entry" (verrouille physiquement l'IP sur la MAC de la carte réseau)...
+
+![Screen38](/TP5/Screen38.png)
+
+On enregistre en cliquant sur "Save" tout en bas et on répète pour la 2e machine.
+
+On fera également attention à activer l'option "Enable Static ARP entries" dans les paramètres du serveur DHCP.
+
+LAN MAC VM 1 (autorisé) : `C2:81:86:B8:35:2C` → `192.168.128.8`
+LAN MAC VM 2 (bloqué) : `CE:AA:0E:EC:BF:24` → `192.168.128.9`
+
+Ainsi, notre table de baux statiques ressemble à cela :
+
+![Screen39](/TP5/Screen39.png)
+
+On crée maintenant notre règle de filtrage :
+
+![Screen40](/TP5/Screen40.png)
+
+On a appliqué nos changements : plus qu'à tester :
+
+![Screen41](/TP5/Screen41.png)
+![Screen42](/TP5/Screen42.png)
+
+On essaie de Ping `8.8.8.8` avant et après création de notre règle de "filtrage MAC", et enfin un site qui n'a rien à voir avec aucune de nos règle : on voit que notre nouvelle règle fonctionne normalement, comme peut le confirmer le log.
+
+On a donc réussi à créer une règle qui, à première vue, ne fait que bloquer l'IP d'une machine, mais qui en réalité, bloque aussi et techniquement sa MAC puisqu'on a "physiquement lié" l'IP et la MAC...
+
+***Question : Le filtrage MAC est-il réellement sécurisé ? Pourquoi est-il facilement contournable ?***
+
+Non, le filtrage MAC n'est pas réellement sécurisé : il peut facilement être contourné, par exemple avec un logiciel de modification (logicielle) d'adresses MAC (pour en prendre une autre ou en prendre une toujours autorisée). C'est donc une barrière assez légère, et non une mesure robuste contre quelqu'un de déterminé ou expérimenté.
+
+#### F. Portail captif
+
+***Question 1 : Dans quels contextes utilise-t-on cela ?***
+
+On utilise généralement les portails captifs :
+- dans les lieux publics (aéroports, gares, restaurants (Wi-Fi gratuit)... ;
+- dans une entreprise pour le réseau "Invités" afin qu'ils n'accèdent pas aux serveurs internes — ou pour que chaque employé ait son accès personnalisé au réseau ;
+- ou encore dans les hôtels, pour identifier chaque client individuellement sur une connexion partagée.
+
+***Question 2 : Quels avantages par rapport à une simple règle de pare-feu ?***
+
+On a ici plusieurs avantages par rapport à une règle :
+- ici, les limitations s'appliquent à un utilisateur (qui s'identifie donc d'où il veut sur le réseau) et non sur un simple appareil ;
+- chaque utilisateur est responsable de ce qu'il fait, en sachant que c'est logué avec son nom comme il s'est identifié ;
+- enfin on peut par exemple limiter la durée de connexion (exemple, 2h de Wi-Fi gratuit) ou le volume de données consommé, ce qu'une règle classique ne permet pas de faire facilement.
+
+***Implémentez un portail captif.***
+
+Cette fois-ci on va dans le menu Services → Captive Portal, et on clique sur le bouton "Add" : on lui donne un nom, éventuellement une description et on clique sur "Save & continue" pour commencer sa configuration.
+
+![Screen43](/TP5/Screen43.png)
+
+On commence par cocher l'option "Enable Captive Portal" pour l'activer. On a alors un panel d'options qui s'affichent (dont des limites de connexions simultanées, ou de trafic, mais que nous n'utiliseront pas).
+
+- On choisit "LAN" comme interface ;
+- et "Authentication Backend" comme Authentication Method (cela utilisera les comptes utilisateurs créés directement dans pfSense.) ;
+- et on laisse "Authentication Server" sur Local Database.
+
+![Screen44](/TP5/Screen44.png)
+![Screen45](/TP5/Screen45.png)
+
+On enregistre les modifications. On va maintenant créer deux utilisateurs pour le portail : 
+
+On va dans le menu System → User Manager, et on clique sur "Add".
+
+On va entrer un nom d'utilisateur (Username) et un mot de passe (Password), et enregistrer :
+
+![Screen46](/TP5/Screen46.png)
+
+...ensuite on retourne sur l'édition de l'utilisateur. Sous la section "Effective Privileges", on clique sur "Add" et on sélectionne "User - Services: Captive Portal login" dans la liste. On clique sur le bouton "Save" deux fois pour enregistrer...
+
+![Screen47](/TP5/Screen47.png)
+
+...et on recommence toute la procédure avec le 2e utilisateur.
+
+![Screen48](/TP5/Screen48.png)
+
+Sur la VM Ubuntu, on peut maintenant ouvrir un navigateur et tenter d'accéder à un site web : on devrait atterrir sur le portail captif. Dans le cas contraire l'OS, dès la connexion, se rend compte qu'un portail captif est en place et demande la connexion avant de pouvoir accéder au réseau...
+
+![Screen49](/TP5/Screen49.png)
+
+Après entrée du nom d'utilisateur et du mot de passe, on peut accéder à Internet comme si de rien n'était.
+
+Et, comme d'habitude, nos logs (cette fois-ci dans le menu Status → System Logs → Authentication → Captive Portal Auth) nous confirment que nos connexions ont abouti, et depuis quelles machines (IPs).
+On peut également aller dans le menu Status → Captive Portal, où l'on retrouvera également des options pour déconnecter à distance les machines du portail.
+
+![Screen50](/TP5/Screen50.png)
+
+Grâce à ces deux utilisateurs que nous avons pu créer, on aurait également pu autoriser / interdire certains sites pour l'un et pas pour l'autre, notamment grâce à la fonction de **groupes**...
+
+#### G. Sauvegarde / restauration
+
+***Sauvegardez la configuration, modifiez-la, et restaurez-la.***
+
+**Sauvegarde**
+
+On va dans le menu Diagnostics → Backup & Restore. Dans la section "Backup Configuration", on sélectionne quoi sauvegarder (ici, on a sélectionné de quoi sauvegarder un maximum d'informations et paramètres). On enregistre sur notre ordinateur la sauvegarde en cliquant sur le bouton "Download configuration as XML".
+
+![Screen51](/TP5/Screen51.png)
+
+**Modification**
+
+On a supprimé toutes les règles de pare-feu.
+
+![Screen52](/TP5/Screen52.png)
+
+**Restauration**
+
+On revient dans le menu Diagnostics → Backup & Restore. Sous la section "Restore Backup", on sélectionne les paramètres correspondants à notre sauvegarde (Restore Area, Encryption), on téléverse le fichier (Configuration file), et on clique sur le bouton "Restore Configuration" (et on confirme) : cela écrasera toute modification effectuée depuis notre sauvegarde. (Ici, notre suppression de règles.)
+
+Ce message nous confirme que la restauration a bien été effectuée :
+
+![Screen53](/TP5/Screen53.png)
+
+...et on peut vérifier par nous même :
+
+![Screen54](/TP5/Screen54.png)
+
+***Question : Pourquoi la sauvegarde régulière est-elle essentielle en production ?***
+
+En production, il est absolument essentiel de sauvegarder régulièrement la configuration du pare-feu, en particulier après que des changements aient été effectués dessus : dans l'éventualité où le pare-feu planterait, ou en cas de corruption de disque, ou en cas d'erreur de configuration fatale (par exemple), ou même d'attaque sur le réseau, on peut restaurer l'intégralité du réseau en quelques secondes au lieu de tout recommencer.
+
+Il est aussi utile de remarquer que dans le cas de pfSense, dans le menu Diagnostics → Backup & Restore → Config History, on peut retrouver un historique des configurations après chaque modification de celle-ci : cela permet rapidement de corriger une erreur de configuration (par exemple la suppression de toutes les règles), sans avoir à penser à sauvegarder à chaque fois, même si le geste ne serait pas de trop......
+
+![Screen55](/TP5/Screen55.png)
