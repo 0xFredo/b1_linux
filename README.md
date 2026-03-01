@@ -1843,3 +1843,105 @@ Comme on a pu le voir là aussi, là où `gen-req` permet, comme son nom l'indiq
 ***Question 3 : Que se passe-t-il si vous oubliez de signer un certificat ?***
 
 Si on oublie de signer un certificat, cela provoquera à la connexion une rupture de la "chaîne de confiance" : l'identité du détenteur du certificat non-signé ne peut pas être vérifiée via l'autorité de certification, et ainsi la connexion sera rejetée.
+
+### II. Configuration du serveur OpenVPN
+
+#### A. Configuration de base
+
+***Créer un fichier de configuration serveur dans `/etc/openvpn/server/server.conf`. On attend dans cette config un port d'écoute, un protocole, une interface virtuelle, un réseau attribué aux clients, et des références aux certificats.***
+
+*(Pour faire fonctionner nos références proprement, on copiera au préalable notre infrastructure PKI (dossier PKI et clé TLS) dans le dossier...)*
+
+On se rend dans le dossier (`cd`), et on crée le nouveau fichier avec `nano`. On y ajoutera les lignes suivantes :
+
+![Screen6](/TP6/Screen6.png)
+
+***Question 1 : Que signifie `dev tun` ?***
+
+`dev tun` correspond à une interface réseau de type "*tun*nel". Elle permet de transporter uniquement des paquets IP, ce qui est plus léger et suffisant pour la majorité des connexions VPN.
+
+***Question 2 : Quelle est la différence entre UDP et TCP pour un VPN ?***
+
+Là où TCP garantit que chaque paquet arrive à destination (bien qu'un cas de "TCP meltdown" puisse fortement ralentir le flux), UDP est plus rapide car il n'attend pas d'accusé de réception pour chaque paquet, raison pour laquelle ce dernier est le protocole recommandé par défaut pour un VPN...
+
+***Question 3 : Quelle plage IP choisir pour le VPN ? Pourquoi ?***
+
+Pour le VPN, on peut choisir une plage d'adresses privées (définies par la RFC 1918), comme `10.8.0.0/24` : cela évite les conflits avec les IP de sites web (car ces plages sont non routables sur l'Internet public), mais aussi les conflits sur le LAN (on évite que deux réseaux utilisent la même plage)...
+
+#### B. Routage et NAT
+
+***Activer le forwarding IP.***
+
+On va éditer le fichier de configuration système `/etc/sysctl.conf` et décommenter la ligne `net.ipv4.ip_forward=1`, comme illustré :
+
+![Screen7](/TP6/Screen7.png)
+
+...et on rafraîchit les paramètres du noyau avec le fichier `sysctl.conf` :
+
+    sudo sysctl -p
+
+***Mettre en place une règle NAT pour avoir l'accès internet depuis le VPN.***
+
+On commence par récupérer le nom de l'interface réseau depuis laquelle on transmet les paquets depuis Internet :
+
+    ip route
+
+... c'est celle où là ligne commence par "default", ici `enp0s5`.
+
+On configure ensuite le routage depuis cette interface :
+
+    sudo iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o enp0s5 -j MASQUERADE
+
+...et on vérifie que le changement a bien été pris en compte : 
+
+    sudo iptables -t nat -L -n -v
+
+![Screen8](/TP6/Screen8.png)
+
+On voit bien la cible `MASQUERADE` sur l'interface `enp0s5` pour la source `10.8.0.0/24`.
+
+***Question 1 : Où se configure le paramètre `ip_forward` ?***
+
+Le paramètre `ip_forward` peut se configurer de deux manières : grâce à la commande `sudo sysctl -w net.ipv4.ip_forward=1` (seulement, cette méthode est temporaire, jusqu'au prochain redémarrage...) ou en modifiant le fichier de configuration système comme tout juste réalisé...
+
+***Question 2 : Quelle commande permet d'afficher les règles NAT actuelles ?***
+
+Pour cela on peut utiliser la commande `sudo iptables -t nat -L -n -v` : elle permet d'afficher la table NAT de notre système, avec notamment nos routes, y compris celle que l'on vient de définir...
+
+***Question 3 : Pourquoi faut-il "masquerader" le réseau VPN ?***
+
+Car il ne faut pas confondre réseau Internet public et réseau privé : les deux sont incompatibles entre eux, car des millions de réseaux privés utilisent cette même adresse. Le "Masquerade", une forme de NAT, fait en sorte que l'adresse IP privée du client soit remplacée par sa propre adresse IP publique avant d'envoyer le paquet sur Internet. Le serveur (VPN) va mémoriser quel client a fait la demande, réceptionner la réponse de Google, puis la renvoyer au bon client VPN.
+
+#### C. Démarrage et analyse du service
+
+***Démarrer le service OpenVPN et vérifier son état.***
+
+On va utiliser `systemctl` pour démarrer le serveur OpenVPN, et plus précisément notre instance "server", on rajoute donc `@server` :
+
+    sudo systemctl start openvpn-server@server
+
+... et on peut dès à présent vérifier si le service est bien en route :
+
+    sudo systemctl status openvpn-server@server
+
+... et que l'interface "tunnel" a bien été créée :
+
+    ip addr show tun0
+
+![Screen9](/TP6/Screen9.png)
+
+Ici, tout semble en ordre : le service est actif, et l'interface "tunnel" a bien été créée et affectée.
+
+***Question 1 : Si le service échoue, quelle commande permet d'afficher ses logs système ?***
+
+Pour afficher les logs système d'un service (s'il est en échec par exemple), en l'occurrence de notre instance OpenVPN, on peut utiliser la commande `sudo journalctl -u openvpn-server@server` (`-u` permet justement d'afficher les logs d'un service en particulier). Les logs du service s'affichent alors, comme illustré :
+
+![Screen10](/TP6/Screen10.png)
+
+***Question 2 : Quelle est la différence entre `status` et `journalctl` ?***
+
+Là où `systemctl status` donne un résumé de l'état du service et affiche seulement les 10 dernières lignes de log (souvent insuffisant pour un diagnostic complet), `journalctl` permet de consulter les logs complets du service. `systemctl status` peut donc servir pour savoir si le service est lancé, et `journalctl` peut servir à remonter jusqu'à la source d'un problème le cas échéant...
+
+***Question 3 : Les chemins vers les certificats sont-ils corrects ?***
+
+Il semblerait que les chemins vers les certificats soient tous corrects : dans le cas contraire, le service ne pourrait pas s'exécuter (status failed) et les logs afficheraient une erreur explicite (ex. "Cannot load certificate file" ou "No such file or directory").
