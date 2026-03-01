@@ -1725,3 +1725,121 @@ En production, il est absolument essentiel de sauvegarder régulièrement la con
 Il est aussi utile de remarquer que dans le cas de pfSense, dans le menu Diagnostics → Backup & Restore → Config History, on peut retrouver un historique des configurations après chaque modification de celle-ci : cela permet rapidement de corriger une erreur de configuration (par exemple la suppression de toutes les règles), sans avoir à penser à sauvegarder à chaque fois, même si le geste ne serait pas de trop......
 
 ![Screen55](/TP5/Screen55.png)
+
+## TP 6
+
+### Préparation du système
+
+***Mettre à jour le système***
+
+    sudo apt update
+    sudo apt upgrade
+
+On utilise `apt` pour rechercher les mises à jour (`update`) et les installer (`upgrade`).
+
+***Installer les paquets nécessaires : `openvpn` et `easy-rsa`***
+
+    sudo apt install openvpn
+    sudo apt install easy-rsa
+
+Là aussi on utilise `apt` pour installer les paquets.
+
+### I. Comprendre la PKI
+
+#### A. Questions
+
+***1. À quoi sert une autorité de certification (CA) ?***
+
+Une autorité de certification gère l'infrastructure de clés publiques (PKI) et garantit l'identité des entités (serveur et clients) au sein du réseau VPN.
+
+Elle valide l'identité du serveur et des clients avant la connexion en utilisant sa propre clé privée pour signer les demandes de certificats des clients, et en fournissant un certificat racine que le serveur et le client utilisent pour vérifier que les certificats présentés sont authentiques et signés par la même autorité.
+
+***2. Quelle différence entre clé privée et certificat ?***
+
+Le certificat permet de prouver qu'un client est "connu" de l'infrastructure et qu'il peut se connecter.
+
+La clé privée, elle, sert à prouver que le certificat appartient bien à son propriétaire légitime.
+
+***3. Pourquoi un serveur VPN a-t-il besoin de certificats ?***
+
+Dans un environnement tel qu'un VPN, où la sécurité et l'authenticité sont essentiels, l'utilisation de certificats s'avère utile pour :
+- s'assurer que le client est autorisé par la CA avant d'ouvrir le tunnel (de même, le client vérifie le certificat du serveur pour éviter de se connecter à une machine malveillante) ;
+- renforcer la sécurité des échanges en utilisant deux trousseaux de clés RSA pour chiffrer les communications ;
+- simplifier la connexion avec ce même système de clés qui remplace un mot de passe plus facilement compromissible...
+
+#### B. Création de l'infrastructure Easy-RSA
+
+***Créer un environnement PKI***
+
+Avant tout on se rend dans le dossier `/usr/share/easy-rsa/` : c'est là que `apt` a installé les fichiers qui nous serviront pour créer l'environnement PKI...
+
+On initialise maintenant l'environnement :
+
+    sudo ./easyrsa init-pki
+
+![Screen1](/TP6/Screen1.png)
+
+Maintenant que notre environnement PKI est généré et prêt à l'emploi (dans le dossier `pki`), on va mainteant pouvoir manipuler les CA et les certificats...
+
+***Générer une CA, un certificat serveur, un certificat client, les paramètres Diffie-Hellman, et une clé TLS supplémentaire.***
+
+**Génération CA**
+
+    sudo ./easyrsa build-ca nopass
+
+On vient de générer notre autorité de certification, en utilisant l'argument `nopass` pour ne pas avoir à utiliser de mot de passe de chiffrement pour la clé.
+
+![Screen2](/TP6/Screen2.png)
+
+Ici, c'est le certificat racine qui viant d'être créé : `ca.crt`.
+
+**Génération certificat serveur**
+
+On commence par générer la demande de certificat :
+
+    sudo ./easyrsa gen-req server nopass
+
+![Screen3](/TP6/Screen3.png)
+
+*(en même temps on a également généré la clé privée du serveur)*
+
+...et on la signe :
+
+    sudo ./easyrsa sign-req server server
+
+![Screen4](/TP6/Screen4.png)
+
+Ici, le premier "server" correspond au type de certificat (indispensable pour les fonctions de serveur VPN) ; on spécifie ensuite le nom du  fichier que que l'on a créé à l'étape précédente, "server", pour le signer.
+
+**Génération certificat client**
+
+Même procédure pour le client que pour le serveur... :
+
+    sudo ./easyrsa gen-req client1 nopass
+    sudo ./easyrsa sign-req client client1
+
+**Génération paramètres Diffie-Hellman**
+
+    sudo ./easyrsa gen-dh
+
+![Screen5](/TP6/Screen5.png)
+
+On vient là ge générer les paramètres Diffie-Hellman (dans le fichier `dh.pem`) : ce sont eux qui permettront de sécuriser l'échange des clés de session entre le client et le serveur.
+
+**Génération clé TLS supplémentaire**
+
+    sudo openvpn --genkey secret ta.key
+
+On vient de créer le dernier élément de l'infrastructure Easy-RSA : la clé TLS. Cette clé permet une sécurité accrue des communications : le serveur ignorera tout paquet qui n'est pas signé avec cette clé, ce qui protège contre les attaques par déni de service (DoS) et le scan de ports. Elle servira également pour l'authentification TLS du VPN...
+
+***Question 1 : Où Easy-RSA crée-t-il ses fichiers ? Que contient le dossier `pki/` ?***
+
+Une fois installé dans `/usr/share/easy-rsa`, il crée ses fichiers dans ce même dossier. Comme on a pu le voir, lorsqu'on a généré notre environnement PKI, celui-ci s'est créé dans un nouveau dossier, `pki`, qui contient tout ce qui est en rapport avec notre infrastructure, afin de pouvoir s'y retrouver... cela inclut notamment les clés privées, les requêtes de certificats et les certificats signés.
+
+***Question 2 : Quelle est la différence entre `gen-req` et `sign-req` ?***
+
+Comme on a pu le voir là aussi, là où `gen-req` permet, comme son nom l'indique, de générer une requête de certificat (et la clé privée correspondante), `sign-req` permet de signer cette requête afin que le certificat soit validé et que l'identité du serveur/client soit vérifiée.
+
+***Question 3 : Que se passe-t-il si vous oubliez de signer un certificat ?***
+
+Si on oublie de signer un certificat, cela provoquera à la connexion une rupture de la "chaîne de confiance" : l'identité du détenteur du certificat non-signé ne peut pas être vérifiée via l'autorité de certification, et ainsi la connexion sera rejetée.
