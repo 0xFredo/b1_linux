@@ -1945,3 +1945,57 @@ Là où `systemctl status` donne un résumé de l'état du service et affiche se
 ***Question 3 : Les chemins vers les certificats sont-ils corrects ?***
 
 Il semblerait que les chemins vers les certificats soient tous corrects : dans le cas contraire, le service ne pourrait pas s'exécuter (status failed) et les logs afficheraient une erreur explicite (ex. "Cannot load certificate file" ou "No such file or directory").
+
+### III. Création du profil client
+
+#### A. Configuration
+
+***Créer un fichier `.ovpn` fonctionnel. Il devra inclure l'adresse publique du serveur, le certificat CA, le certificat client, la clé privée client, les paramètres de chiffrement, et l'authentification TLS.***
+
+Dans notre dossier utilisateur (`~/`) et non le dossier `/etc/openvpn/server`, on utilise `nano` pour créer notre profil client, comme illustré ci-dessous :
+
+![Screen11](/TP6/Screen11.png)
+
+***Question 1 : Comment intégrer un certificat directement dans un fichier `.ovpn` ?***
+
+Pour intégrer un certificat directement dans le fichier, on utilise des balises : par exemple, pour le certificat racine, on met son texte entre deux balises `<ca>` et `<\ca>`, et ainsi de suite pour le certificat client, la clé privée cliente, et la clé TLS (comme illustré ci-dessus)...
+
+***Question 2 : Pourquoi la clé privée ne doit-elle jamais être partagée publiquement ?***
+
+La clé privée ne doit jamais être partagée publiquement car c'est le seul élément qui prouve l'identité de l'utilisateur. Si elle est détenue par autrui, cette personne pourrait usurper l'identité de l'utilisateur original sur le VPN, ou même déchiffrer le trafic après interception...
+
+#### B. Tests et validation
+
+**Vous devez être capable de :**
+
+***Établir une connexion VPN***
+
+On on transférerait notre fichier `client.ovpn` sur un client ; dans le cas d'Ubuntu (une autre VM) on exécuterait la commande suivante :
+
+    sudo openvpn --config client.ovpn
+
+... la connexion serait alors établie à l'obtention du message "Initialization Sequence Completed".
+
+***Vérifier l'adresse IP obtenue***
+
+Une fois connecté, on vérifierait que l'interface virtuelle (tun0) a bien reçu une adresse IP privée du serveur :
+
+    ip addr show tun0
+
+...on devrait alors voir une adresse du type inet `10.8.0.3` : c'est l'adresse interne au tunnel VPN.
+
+***Vérifier l'accès Internet via le tunnel***
+
+Pour cela on pourrait `curl ifconfig.me` : l'IP affichée devrait être celle de la carte Internet d'Ubuntu (Serveur VPN).
+
+On pourrait alors faire un Ping sur `8.8.8.8` pour vérifier qu'on a bien accès à Internet...
+
+***Question 1 : Comment vérifier que votre trafic passe par le VPN ?***
+
+Pour vérifier que le trafic passe bien par le VPN il suffit à nouveau de `curl ifconfig.me` pour vérifier l'adresse IP publique (si c'est celle du serveur VPN).
+
+On peut également vérifier la table de routage (`ip route`)...
+
+***Question 2 : Que se passe-t-il si le port 1194 est bloqué ?***
+
+Si le port 1194 est bloqué par un pare-feu, alors tout client restera bloqué sur l'état "Connecting" car il ne recevra aucune réponse du serveur ; pour éventuellement finir sur une "TLS Error" (time-out) dans les logs...
